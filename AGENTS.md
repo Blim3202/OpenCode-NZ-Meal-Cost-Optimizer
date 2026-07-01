@@ -49,6 +49,10 @@ opencode/
 - `PaknSaveAPI.get_stores()` returns `{"stores": [...]}`, not a bare list.
 - 21 dishes are hand-curated in `DISH_INGREDIENTS` — no NLP/LLM parsing yet.
 
+## Git Rules
+
+- **Always pause and ask for confirmation** before running `git push` or `git pull`. Never auto-execute these commands.
+
 ## NZ Scope
 
 All addresses, supermarkets, and data are New Zealand only. First target: Pak'nSave (expand to other NZ supermarkets later).

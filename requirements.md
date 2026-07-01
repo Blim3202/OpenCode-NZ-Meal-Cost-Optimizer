@@ -6,7 +6,7 @@ Pinned versions for the NZ Meal Cost Optimizer.
 
 ```
 beautifulsoup4==4.14.3
-cloudscraper          # NOT in pip freeze — must install separately: pip install cloudscraper
+cloudscraper
 numpy==2.4.6
 pandas==3.0.3
 requests==2.34.2
@@ -131,5 +131,4 @@ widgetsnbextension==4.0.15
 ```powershell
 .venv\Scripts\Activate.ps1
 pip install -r requirements.md
-pip install cloudscraper
 ```

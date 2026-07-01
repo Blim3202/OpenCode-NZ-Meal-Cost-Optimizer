@@ -7,7 +7,6 @@ Finds the cheapest Pak'nSave for a given dish by comparing ingredient prices acr
 ```powershell
 .venv\Scripts\Activate.ps1
 pip install -r requirements.md
-pip install cloudscraper   # missing from requirements.md — both scripts import it
 ```
 
 ## Project Layout
@@ -43,7 +42,6 @@ opencode/
 
 ## Key Gotchas
 
-- `cloudscraper` is imported by both scripts but **not listed** in `requirements.md`. Must install separately.
 - Guest API token expires after 30 min — auto-refreshed by the `PaknSaveAPI` class.
 - Nominatim geocoding rate limit: 1 req/sec.
 - Prices from the API are in **cents** — divide by 100 for dollars.

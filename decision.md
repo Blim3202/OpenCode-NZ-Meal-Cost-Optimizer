@@ -42,3 +42,15 @@ Free, no API key needed, sufficient accuracy for NZ addresses. Rate limit of 1 r
 ## 10. Jupyter notebook as primary interface
 
 Chosen for easy experimentation — user can edit inputs and re-run cells without touching the terminal. CLI (`prototype.py`) available as alternative.
+
+## 11. Nominatim/OSM for Woolworths store locations
+
+No public Woolworths NZ store enumeration API exists (`/api/v1/sites`, `/api/v1/stores`, `/api/store-finder` all return 404). Used OpenStreetMap/Nominatim combined with regional keyword stratification as the store location source.
+
+## 12. Multi-phase regional keyword search for Woolworths stores
+
+Single brand-only queries returned ~50 stores. Expanded to per-region keyword patterns (`{region} Woolworths`, `Woolworths {region}`, etc.) to target ~180 stores NZ-wide.
+
+## 13. Woolworths store deduplication by coordinates
+
+Stores are deduplicated on `(latitude, longitude)` in `scripts/woolworths/stores_fetch.py`, keeping the first occurrence sorted by query order (nationwide → regional).

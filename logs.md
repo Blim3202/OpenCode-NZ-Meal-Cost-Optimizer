@@ -47,3 +47,27 @@
 **Cause**: Nominatim doesn't recognize the address format, or the address is too vague.
 
 **Resolution**: The `fetch_stores.py` script has a fallback that tries `"Pak'nSave {name}, New Zealand"` as an alternative query. For user addresses, they need to provide a recognizable NZ address.
+
+## 7. Woolworths `/api/v1/sites` and sibling endpoints return 404
+
+**Symptom**: Attempted to enumerate Woolworths NZ stores via `/api/v1/sites`, `/api/v1/stores`, and `/api/store-finder`. All returned 404 or empty responses.
+
+**Cause**: The Angular SPA store-finder is JavaScript-rendered; no public JSON API exists for a full store list.
+
+**Resolution**: Abandoned public API enumeration. Switched to OpenStreetMap/Nominatim as store location source.
+
+## 8. Initial Woolworths keyword search insufficient
+
+**Symptom**: Initial nationwide-only keyword queries (`Woolworths New Zealand`, `Countdown New Zealand`, etc.) returned ~50 stores, well below the expected ~180 NZ stores.
+
+**Cause**: Many OSM entries are only tagged with local-area names and don't surface under broad national keywords.
+
+**Resolution**: Expanded `scripts/woolworths/stores_fetch.py` to use per-region keyword patterns (`{region} Woolworths`, `Countdown {region}`, etc.) to maximise coverage.
+
+## 9. Woolworths store-finder URL pattern not yet integrated
+
+**Symptom**: Internal numeric store IDs are visible in the Angular SPA store-finder URL pattern (`/store-finder/{id}/{city}/{slug}`), but there is no public API to map these to coordinates or names.
+
+**Cause**: Internal IDs are client-side routing only; no JSON endpoint exposes the mapping.
+
+**Resolution**: Not yet resolved. Internal IDs remain unmapped to OSM place IDs. Using Nominatim coordinates for now; internal IDs may be needed later if per-store pricing is confirmed.

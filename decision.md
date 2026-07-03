@@ -54,3 +54,7 @@ Single brand-only queries returned ~50 stores. Expanded to per-region keyword pa
 ## 13. Woolworths store deduplication by coordinates
 
 Stores are deduplicated on `(latitude, longitude)` in `scripts/woolworths/stores_fetch.py`, keeping the first occurrence sorted by query order (nationwide → regional).
+
+## 14. Playwright headed scraping over direct API for Woolworths
+
+Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Per-store scoping will be tested via the site's change-location flow before extracting prices.

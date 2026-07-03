@@ -25,8 +25,8 @@ opencode/
 │   │   ├── fetch_stores.py        # one-shot: builds paknsave_stores.csv from __NEXT_DATA__ + Nominatim
 │   │   └── prototype.py           # CLI: python scripts/paknsave/prototype.py "address" "dish"
 │   └── woolworths/
-│       ├── woolworths_api.py      # WoolworthsAPI class, auth, store list, product search
 │       └── stores_fetch.py        # builds woolworths_stores.csv from Nominatim/OpenStreetMap
+│       └── explore_playwright.py  # throwaway Playwright experiment for scraping Woolworths search results
 ├── AGENTS.md                      # this file
 ├── Handover.md                    # Woolworths NZ reverse-engineering notes
 ├── design.md                      # technical design (API, auth, pipeline)
@@ -41,8 +41,9 @@ opencode/
 |---|---|
 | `scripts/paknsave/prototype.py` | CLI entry point. Contains `PaknSaveAPI` class, `DISH_INGREDIENTS` map (21 dishes), geocoding, haversine, store search, price comparison. |
 | `scripts/paknsave/fetch_stores.py` | Data builder. Scrapes `__NEXT_DATA__` for store GUIDs, store-finder HTML for names/addresses, geocodes via Nominatim. Run once or to refresh. |
-| `scripts/woolworths/woolworths_api.py` | Woolworths API client (auth via Camoufox, store enumeration, product search). |
+| `scripts/woolworths/woolworths_api.py` | Woolworths API client (auth via Camoufox, store enumeration, product search). **Note:** Direct product search API is blocked; use Playwright headed scraping instead. `woolworths_api.py` is not yet implemented. |
 | `scripts/woolworths/stores_fetch.py` | Builds `data/woolworths_stores.csv` from Nominatim/OpenStreetMap with regional keyword expansion and (lat, lon) deduplication. |
+| `scripts/woolworths/explore_playwright.py` | Throwaway Playwright script for experimenting with Woolworths NZ search result scraping. Uses headed Chromium and reads shadow DOM (`product-stamp-grid > div.product-entry`). |
 | `notebooks/meal_cost_optimizer.ipynb` | Cells 1–4: setup. Cell 5: markdown. Cell 6: main run (edit `USER_ADDRESS`, `DISH_NAME`). Cell 7: itemised cheapest store table. |
 | `data/woolworths_stores.csv` | ~180 rows (deduplicated by coordinates). Columns: `osm_place_id`, `name`, `address`, `city`, `region`, `latitude`, `longitude`. Sourced from OSM via Nominatim regional keyword crawl. |
 | `requirements.md` | Pinned deps. Core: `cloudscraper`, `requests`, `pandas`, `numpy`, `beautifulsoup4`, `jupyterlab`. |
@@ -50,7 +51,7 @@ opencode/
 ## Key Gotchas
 
 - **Pak'nSave**: Guest API token expires after 30 min — auto-refreshed by the `PaknSaveAPI` class.
-- **Woolworths**: No guest token. Requires real user account + browser login (Camoufox). Cookies reused for ~weeks. Akamai blocks plain browserless login.
+- **Woolworths**: No guest token. Requires real user account + browser login (Camoufox). Cookies reused for ~weeks. Akamai blocks plain browserless login. Public search page accessible via Playwright headed mode with `--disable-blink-features=AutomationControlled`; direct `GET /api/v1/products?target=search` returns 400.
 - Nominatim geocoding rate limit: 1 req/sec.
 - Prices from the Pak'nSave API are in **cents** — divide by 100 for dollars.
 - Search returns first/most-relevant result per query, not cheapest (avoids pet food for "beef mince").
@@ -63,8 +64,8 @@ opencode/
 
 ## Woolworths Research Status
 
-- See `Handover.md` for current reverse-engineering status.
-- Per-store pricing is the **primary blocker**. Do not integrate until experimentally confirmed.
+- Per-store pricing is the **primary blocker**. Direct `GET /api/v1/products?target=search` returns 400 with `Header is missing or is invalid.`; do not rely on the documented API.
+- Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. Prices visible in DOM (Angular shadow DOM). Search is scoped to a default location; change-location flow must be reverse-engineered for per-store pricing.
 - Store locations are sourced from OpenStreetMap/Nominatim (no public Woolworths store API).
 
 ## NZ Scope

@@ -1,20 +1,21 @@
 # Woolworths NZ - Reverse Engineering Handover
 
-Status: Paused — store locations sourced via Nominatim; awaiting per-store price scoping validation
+Status: Experimenting with Playwright (headed Chromium) to scrape search results page. Direct API pathway abandoned.
 
-## API Endpoints
+## Current Findings
 
-- Base URL: `https://www.woolworths.co.nz`
-- Product search: `GET /api/v1/products?target=search&search=<query>&inStockProductsOnly=false&size=<n>`
-- Cart: `POST /api/v1/trolleys/my/items`, `GET /api/v1/trolleys/my`, `DELETE /api/v1/trolleys/my/items`
-- Pagination constants: `ITEMS_PER_PAGE = [24, 48, 120]`, `MINIMUM_PAGE_SIZE = 24`
+- **Homepage & search page accessible via Playwright** (both headed and direct navigation modes return 200).
+- **Search interaction works**: input `input[type="search"]` accepts text and navigates to `https://www.woolworths.co.nz/shop/searchproducts?search=<term>`.
+- **412 products rendered** for `milk` query inside Angular shadow DOM components (`product-stamp-grid > div.product-entry`).
+- **Prices visible** as plain text in the DOM — no authentication required to view search results.
+- Pricing appears global within a detected location context (page shows: "You're seeing information for the Glenfield area"). Change-location flow is the next scoping experiment.
+- **Direct async API call** `GET /api/v1/products?target=search&search=...` returns `400 Header is missing or is invalid.` — explored briefly and abandoned.
 
 ## Authentication
 
-- No guest token. Requires real account + Camoufox browser login.
-- Session cookies reused for ~weeks.
-- XSRF-TOKEN cookie required as `x-xsrf-token` header on POST/DELETE.
-- Akamai blocks plain scripts for login; Camoufox used for auth only.
+- **No guest token for search**. Public search results page does not require login.
+- **XSRF-TOKEN** cookie exists after homepage load and is used on some protected endpoints (e.g., `/api/v1/trolleys/my`), but search page is unauthenticated.
+- Akamai guardrails present; headed Chromium with `--disable-blink-features=AutomationControlled` is required. Headless mode is unstable for Playwright on this site.
 
 ## Store Data
 
@@ -24,15 +25,16 @@ Status: Paused — store locations sourced via Nominatim; awaiting per-store pri
 - **Crawl etiquette**: 1 req/sec + `User-Agent: NZMealCostOptimizer/1.0 (research project)`
 - No public store enumeration API found; internal Woolworths numeric IDs visible in UI bundles but not yet mapped.
 
-## Critical Blocker
+## Architecture Decision
 
-- Per-store pricing unconfirmed. The search endpoint has no documented `storeId` parameter.
-- Pricing may be global unless a separate "select store" call scopes the session.
-- Must be verified experimentally before integration.
+The experimental path is **Playwright-headed scraping** rather than the previously doctored direct REST pathway. Rationale:
+- Search endpoint `target=search` is blocked/header-gated without a verified session context.
+- Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM.
+- Per-store scoping can be tested by interacting with the website’s change-location flow before each search.
 
 ## Next Steps
 
-1. Implement `WoolworthsAPI` class (auth, product search).
-2. Reverse-engineer store-select mechanism (if it exists).
-3. Confirm search is store-scoped by testing with two store contexts.
-4. Integrate into `prototype.py` for multi-chain comparison once confirmed.
+1. Reverse-engineer the **change-location flow** to scope results to a specific store or delivery area.
+2. Confirm whether search scope persists/cookies persist across runs without re-login.
+3. Extract price and product metadata robustly from `product-stamp-grid` shadow DOM.
+4. Integrate Playwright-based `WoolworthsAPI` into `prototype.py` once location scoping is validated.

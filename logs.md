@@ -71,3 +71,19 @@
 **Cause**: Internal IDs are client-side routing only; no JSON endpoint exposes the mapping.
 
 **Resolution**: Not yet resolved. Internal IDs remain unmapped to OSM place IDs. Using Nominatim coordinates for now; internal IDs may be needed later if per-store pricing is confirmed.
+
+## 10. Woolworths direct product search API unusable (`400 Header is missing or is invalid.`)
+
+**Symptom**: Calling `GET /api/v1/products?target=search&search=milk&inStockProductsOnly=false&size=24` from both outside the browser and via Playwright's `page.request` returns HTTP 400 with `{"message":"One or more errors occurred","errors":[{"field":"Header","message":"Header is missing or is invalid."}]}`.
+
+**Cause**: The `target=search` endpoint requires a session/header context established by prior authenticated or scoped requests that Playwright's direct request does not provide.
+
+**Resolution**: Abandoned direct REST pathway for search. Site uses client-side Angular rendering (`product-stamp-grid`) and search results appear under `/shop/searchproducts?search=...` without login. Pivoted to Playwright headed scraping from the rendered page, reading Angular shadow DOM instead of JSON API.
+
+## 11. Headless Playwright blocked on Woolworths (`ERR_HTTP2_PROTOCOL_ERROR`)
+
+**Symptom**: Running `page.goto("https://www.woolworths.co.nz/")` with `headless=True` and `--disable-blink-features=AutomationControlled` raised `net::ERR_HTTP2_PROTOCOL_ERROR`.
+
+**Cause**: Site/Akamai blocks headless/automation fingerprints despite standard disguise arguments.
+
+**Resolution**: Use headed mode with `headless=False` and standard user-agent/locale/timezone settings. Search and DOM extraction work reliably in this configuration.

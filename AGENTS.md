@@ -16,8 +16,7 @@ opencode/
 ├── data/
 │   ├── paknsave_stores.csv        # 60 stores: store_id (GUID), name, address, city, region, lat, lon
 │   ├── paknsave_store_slugs.csv   # slug → store_id mapping (albany → 65defcf2-...)
-│   ├── woolworths_stores.csv      # ~180 stores from Nominatim/OSM: osm_place_id, name, address, city, region, lat, lon
-│   └── sample_search_results.json # example API response for product search
+│   └── woolworths_stores.csv      # ~180 stores from Nominatim/OSM: osm_place_id, name, address, city, region, lat, lon
 ├── notebooks/
 │   └── meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
 ├── scripts/

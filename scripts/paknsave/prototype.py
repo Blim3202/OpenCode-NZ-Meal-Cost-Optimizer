@@ -2,10 +2,9 @@ import cloudscraper
 import pandas as pd
 import requests
 import math
-from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-stores_csv = pd.read_csv(DATA_DIR / "paknsave_stores.csv")
+DATA_DIR = "../data"
+stores_csv = pd.read_csv(f"{DATA_DIR}/paknsave_stores.csv")
 
 BASE = "https://api-prod.prod.fsniwaikato.kiwi/prod"
 

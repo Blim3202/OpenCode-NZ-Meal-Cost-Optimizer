@@ -1,22 +1,6 @@
 # Major Errors & Resolutions
 
-## 1. POST /CommonApi/Store/GetStoreList returns 307 → 404
-
-**Symptom**: Hitting `https://www.paknsave.co.nz/CommonApi/Store/GetStoreList` returns a 307 redirect, which then 404s.
-
-**Cause**: Vercel redirects mixed-case paths to lowercase. Next.js catches the lowercased route instead of proxying to the .NET backend.
-
-**Resolution**: Do not use this endpoint. Use the mobile API (`/mobile/store/physical`) or the CSV fallback instead.
-
-## 2. Algolia search keys not accessible
-
-**Symptom**: Tried to use Algolia for product search directly. JS bundles are minified and keys are not exposed.
-
-**Cause**: Algolia search keys are set server-side, not embedded in client JS.
-
-**Resolution**: Use the Foodstuffs mobile API for product search instead.
-
-## 3. Loose Garlic pricing ($40+/kg)
+## 1. Loose Garlic pricing ($40+/kg)
 
 **Symptom**: Searching "garlic" returns "Loose Garlic" priced at $39.99/kg, making a single bulb appear extremely expensive.
 
@@ -24,15 +8,7 @@
 
 **Resolution**: Accept that some items have misleading per-kg pricing. The crushed garlic jar ($2.29) is a more practical result and sometimes appears instead. This is a known limitation.
 
-## 4. `cloudscraper` not in requirements.txt
-
-**Symptom**: `ModuleNotFoundError: No module named 'cloudscraper'` when running scripts after a fresh `pip install -r requirements.txt`.
-
-**Cause**: `cloudscraper` was added to the code but never added to `requirements.txt`.
-
-**Resolution**: Install manually with `pip install cloudscraper`. Should be added to `requirements.md` (now renamed from `requirements.txt`).
-
-## 5. Store slug matching failures
+## 2. Store slug matching failures
 
 **Symptom**: Some stores didn't match between the store-finder page slugs and the `__NEXT_DATA__` GUIDs.
 
@@ -40,7 +16,7 @@
 
 **Resolution**: Hardcoded fallback mappings in `fetch_stores.py` for known mismatches (e.g., Henderson → "alderman-drive-henderson"). Not fully automated — manual verification needed for new stores.
 
-## 6. Nominatim geocoding returning None
+## 3. Nominatim geocoding returning None
 
 **Symptom**: `geocode()` returns `(None, None)` for some addresses.
 
@@ -48,7 +24,7 @@
 
 **Resolution**: The `fetch_stores.py` script has a fallback that tries `"Pak'nSave {name}, New Zealand"` as an alternative query. For user addresses, they need to provide a recognizable NZ address.
 
-## 7. Woolworths `/api/v1/sites` and sibling endpoints return 404
+## 4. Woolworths `/api/v1/sites` and sibling endpoints return 404
 
 **Symptom**: Attempted to enumerate Woolworths NZ stores via `/api/v1/sites`, `/api/v1/stores`, and `/api/store-finder`. All returned 404 or empty responses.
 
@@ -56,7 +32,7 @@
 
 **Resolution**: Abandoned public API enumeration. Switched to OpenStreetMap/Nominatim as store location source.
 
-## 8. Initial Woolworths keyword search insufficient
+## 5. Initial Woolworths keyword search insufficient
 
 **Symptom**: Initial nationwide-only keyword queries (`Woolworths New Zealand`, `Countdown New Zealand`, etc.) returned ~50 stores, well below the expected ~180 NZ stores.
 
@@ -64,7 +40,7 @@
 
 **Resolution**: Expanded `scripts/woolworths/stores_fetch.py` to use per-region keyword patterns (`{region} Woolworths`, `Countdown {region}`, etc.) to maximise coverage.
 
-## 9. Woolworths store-finder URL pattern not yet integrated
+## 6. Woolworths store-finder URL pattern not yet integrated
 
 **Symptom**: Internal numeric store IDs are visible in the Angular SPA store-finder URL pattern (`/store-finder/{id}/{city}/{slug}`), but there is no public API to map these to coordinates or names.
 
@@ -72,7 +48,7 @@
 
 **Resolution**: Not yet resolved. Internal IDs remain unmapped to OSM place IDs. Using Nominatim coordinates for now; internal IDs may be needed later if per-store pricing is confirmed.
 
-## 10. Woolworths direct product search API unusable (`400 Header is missing or is invalid.`)
+## 7. Woolworths direct product search API unusable (`400 Header is missing or is invalid.`)
 
 **Symptom**: Calling `GET /api/v1/products?target=search&search=milk&inStockProductsOnly=false&size=24` from both outside the browser and via Playwright's `page.request` returns HTTP 400 with `{"message":"One or more errors occurred","errors":[{"field":"Header","message":"Header is missing or is invalid."}]}`.
 
@@ -80,7 +56,7 @@
 
 **Resolution**: Abandoned direct REST pathway for search. Site uses client-side Angular rendering (`product-stamp-grid`) and search results appear under `/shop/searchproducts?search=...` without login. Pivoted to Playwright headed scraping from the rendered page, reading Angular shadow DOM instead of JSON API.
 
-## 11. Headless Playwright blocked on Woolworths (`ERR_HTTP2_PROTOCOL_ERROR`)
+## 8. Headless Playwright blocked on Woolworths (`ERR_HTTP2_PROTOCOL_ERROR`)
 
 **Symptom**: Running `page.goto("https://www.woolworths.co.nz/")` with `headless=True` and `--disable-blink-features=AutomationControlled` raised `net::ERR_HTTP2_PROTOCOL_ERROR`.
 

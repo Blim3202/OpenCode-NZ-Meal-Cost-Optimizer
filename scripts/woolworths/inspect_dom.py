@@ -1,5 +1,5 @@
-import os, re
-p = os.path.join("..", "..", "Temp", "woolworths_search_dom.html")
+import re
+p = "../../Temp/woolworths_search_dom.html"
 html = open(p, "r", encoding="utf-8").read()
 print("Length:", len(html))
 for pat in ["product-price", "price", "cents", "Search", "searchTerm", "milk", "resultsGrid", "noUi", "productList", "section-"]:

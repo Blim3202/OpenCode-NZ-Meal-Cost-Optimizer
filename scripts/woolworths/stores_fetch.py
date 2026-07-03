@@ -26,7 +26,6 @@ Usage:
 import re
 import sys
 import time
-from pathlib import Path
 
 import pandas as pd
 import requests
@@ -34,7 +33,7 @@ import unicodedata
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+DATA_DIR = "../../data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/search"
@@ -223,7 +222,7 @@ def main():
     if df.empty:
         raise SystemExit("No stores found.")
 
-    out_path = DATA_DIR / "woolworths_stores.csv"
+    out_path = f"{DATA_DIR}/woolworths_stores.csv"
     df.to_csv(out_path, index=False)
 
     df_valid = df.dropna(subset=["latitude", "longitude"])

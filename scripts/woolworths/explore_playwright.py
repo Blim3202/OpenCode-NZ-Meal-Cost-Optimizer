@@ -1,9 +1,9 @@
-import os, time, json
+import time, json
 from playwright.sync_api import sync_playwright
 
 URL = "https://www.woolworths.co.nz/"
 SEARCH_TERM = "milk"
-OUT_DIR = os.path.join("..", "..", "Temp")
+OUT_DIR = "../../Temp"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -54,7 +54,7 @@ def run():
 
         # Dump full search HTML to inspect raw response
         html = page.content()
-        out = os.path.join(OUT_DIR, "woolworths_search_full.html")
+        out = f"{OUT_DIR}/woolworths_search_full.html"
         with open(out, "w", encoding="utf-8") as f:
             f.write(html)
         print(f"\nSaved full search HTML -> {out}")

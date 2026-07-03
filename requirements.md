@@ -6,7 +6,7 @@ Pinned versions for the NZ Meal Cost Optimizer.
 
 ```
 beautifulsoup4==4.14.3
-cloudscraper
+cloudscraper==1.2.71
 numpy==2.4.6
 pandas==3.0.3
 requests==2.34.2
@@ -38,6 +38,7 @@ bleach==6.3.0
 certifi==2026.5.20
 cffi==2.0.0
 charset-normalizer==3.4.7
+cloudscraper==1.2.71
 colorama==0.4.6
 comm==0.2.3
 debugpy==1.8.20
@@ -46,6 +47,7 @@ defusedxml==0.7.1
 executing==2.2.1
 fastjsonschema==2.21.2
 fqdn==1.5.1
+greenlet==3.5.3
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
@@ -89,12 +91,15 @@ pandas==3.0.3
 pandocfilters==1.5.1
 parso==0.8.7
 platformdirs==4.9.6
+playwright==1.61.0
 prometheus_client==0.25.0
 prompt_toolkit==3.0.52
 psutil==7.2.2
 pure_eval==0.2.3
 pycparser==3.0
+pyee==13.0.1
 Pygments==2.20.0
+pyparsing==3.3.2
 python-dateutil==2.9.0.post0
 python-json-logger==4.1.0
 pywinpty==3.0.3
@@ -102,6 +107,7 @@ PyYAML==6.0.3
 pyzmq==27.1.0
 referencing==0.37.0
 requests==2.34.2
+requests-toolbelt==1.0.0
 rfc3339-validator==0.1.4
 rfc3986-validator==0.1.1
 rfc3987-syntax==1.1.0
@@ -117,13 +123,13 @@ tornado==6.5.5
 traitlets==5.15.0
 typing_extensions==4.15.0
 tzdata==2026.2
-uri-template==3.0.3
+uri-template==1.3.0
 urllib3==2.7.0
 wcwidth==0.7.0
-webcolors==2.10.0
+webcolors==25.10.0
 webencodings==0.5.1
 websocket-client==1.9.0
-widgetsnbextension==4.0.15
+widgetsnbextension==4.0.1
 ```
 
 ## Install

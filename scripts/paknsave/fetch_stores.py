@@ -2,12 +2,11 @@ import cloudscraper
 import json
 import re
 import time
-from pathlib import Path
 
 import pandas as pd
 import requests
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = "../data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 scraper = cloudscraper.create_scraper()
@@ -159,9 +158,9 @@ for i, entry in enumerate(store_entries, 1):
 df = pd.DataFrame(store_entries)
 df = df[["store_id", "name", "address", "city", "region", "latitude", "longitude"]]
 df.columns = ["store_id", "name", "address", "city", "region", "latitude", "longitude"]
-df.to_csv(DATA_DIR / "paknsave_stores.csv", index=False)
+df.to_csv(f"{DATA_DIR}/paknsave_stores.csv", index=False)
 
-print(f"\nSaved {len(df)} stores to {DATA_DIR / 'paknsave_stores.csv'}")
+print(f"\nSaved {len(df)} stores to {DATA_DIR}/paknsave_stores.csv")
 print(f"Stores with coords: {df['latitude'].notna().sum()} / {len(df)}")
 
 # Print table

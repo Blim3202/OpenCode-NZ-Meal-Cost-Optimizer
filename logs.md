@@ -63,3 +63,13 @@
 **Cause**: Site/Akamai blocks headless/automation fingerprints despite standard disguise arguments.
 
 **Resolution**: Use headed mode with `headless=False` and standard user-agent/locale/timezone settings. Search and DOM extraction work reliably in this configuration.
+
+## 9. Successful Woolworths Store Identification via Manual HTML Inspection
+
+**Symptom**: Needed to obtain comprehensive Woolworths store locations for NZ to enable per-store pricing queries.
+
+**Cause**: Previous Nominatim/OSM approach via stores_fetch.py was incomplete and required automation that wasn't yet implemented. Manual inspection approach was needed to identify all store locations.
+
+**Resolution**: Successfully inspected Woolworths website HTML to identify all store locations. Determined that stores_fetch.py and woolworths_stores.csv can be deleted pending implementation of proper HTML element selection for automation. Successfully navigated to the store selection dropdown on the Woolworths website, ready to implement store selection functionality.
+
+**Next Steps**: Implement store selection logic, verify selection persists and affects search scope, then re-implement automated store discovery through proper HTML element selection.

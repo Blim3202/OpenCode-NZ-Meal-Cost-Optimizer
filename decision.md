@@ -43,18 +43,18 @@ Free, no API key needed, sufficient accuracy for NZ addresses. Rate limit of 1 r
 
 Chosen for easy experimentation — user can edit inputs and re-run cells without touching the terminal. CLI (`prototype.py`) available as alternative.
 
-## 11. Nominatim/OSM for Woolworths store locations
+## 11. Manual HTML inspection for Woolworths store locations
 
-No public Woolworths NZ store enumeration API exists (`/api/v1/sites`, `/api/v1/stores`, `/api/store-finder` all return 404). Used OpenStreetMap/Nominatim combined with regional keyword stratification as the store location source.
+No public Woolworths NZ store enumeration API exists (`/api/v1/sites`, `/api/v1/stores`, `/api/store-finder` all return 404). Store locations identified through manual HTML inspection of the Woolworths website. Automation will be implemented by finding the proper HTML elements for store discovery.
 
-## 12. Multi-phase regional keyword search for Woolworths stores
+## 12. Store discovery approach for Woolworths
 
-Single brand-only queries returned ~50 stores. Expanded to per-region keyword patterns (`{region} Woolworths`, `Woolworths {region}`, etc.) to target ~180 stores NZ-wide.
+Initially attempted multi-phase regional keyword search but found it insufficient for complete coverage. Switched to manual HTML inspection approach to identify all Woolworths store locations. Automation will be implemented by identifying and selecting the proper HTML elements for store discovery.
 
-## 13. Woolworths store deduplication by coordinates
+## 13. Woolworths store deduplication approach
 
-Stores are deduplicated on `(latitude, longitude)` in `scripts/woolworths/stores_fetch.py`, keeping the first occurrence sorted by query order (nationwide → regional).
+Store deduplication will be handled during the HTML element selection process for store discovery. Duplicate entries will be identified and removed based on store name, address, or other unique identifiers found in the Woolworths website HTML structure.
 
 ## 14. Playwright headed scraping over direct API for Woolworths
 
-Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Per-store scoping will be tested via the site's change-location flow before extracting prices.
+Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown. Next step is to implement store selection functionality to enable per-store pricing queries.

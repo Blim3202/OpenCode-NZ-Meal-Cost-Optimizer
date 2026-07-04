@@ -28,22 +28,23 @@ Status: Experimenting with Playwright (headed Chromium) to scrape search results
 
 ## Store Data
 
-- **Source**: OpenStreetMap/Nominatim via `scripts/woolworths/stores_fetch.py`
-- **Schema**: `osm_place_id`, `name`, `address`, `city`, `region`, `latitude`, `longitude`
-- **Coverage**: targeting ~180 NZ stores; deduplicated on `(latitude, longitude)`
-- **Crawl etiquette**: 1 req/sec + `User-Agent: NZMealCostOptimizer/1.0 (research project)`
-- No public store enumeration API found; internal Woolworths numeric IDs visible in UI bundles but not yet mapped.
+- **Source**: Manual HTML inspection of Woolworths website (no public store enumeration API exists)
+- **Schema**: To be determined based on HTML element selection for store discovery
+- **Coverage**: All NZ Woolworths stores identified through manual inspection
+- **Collection etiquette**: Manual inspection completed; automated collection will be implemented via HTML element selection with appropriate rate limiting
+- - No public store enumeration API found; internal Woolworths numeric IDs visible in UI bundles but not yet mapped
 
 ## Architecture Decision
 
 The experimental path is **Playwright-headed scraping** rather than the previously doctored direct REST pathway. Rationale:
-- Search endpoint `target=search` is blocked/header-gated without a verified session context.
-- Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM.
-- Per-store scoping can be tested by interacting with the website's change-location flow before each search.
+- Search endpoint `target=search` is blocked/header-gated without a verified session context
+- Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM
+- Per-store scoping approach changed: Instead of reversing the change-location flow, we have identified the store selection dropdown through manual inspection and will implement store selection directly through HTML element interaction
 
 ## Next Steps
 
-1. Reverse-engineer the **change-location flow** to scope results to a specific store or delivery area.
-2. Confirm whether search scope persists/cookies persist across runs without re-login.
-3. Integrate Playwright-based `WoolworthsAPI` into `prototype.py` once location scoping is validated.
-4. Replace/upstream the temporary `woolworths_scrape.py` extractor once the data shape is stable.
+1. Implement store selection functionality by interacting with the identified store selection dropdown on the Woolworths website
+2. Verify that store selection persists and affects search results/scopes
+3. Confirm whether search scope/cookies persist across runs without re-login
+4. Integrate Playwright-based WoolworthsAPI into prototype.py once location scoping is validated
+5. Replace/upstream the temporary woolworths_scrape.py extractor once the data shape is stable

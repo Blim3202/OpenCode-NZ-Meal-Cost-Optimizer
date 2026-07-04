@@ -16,7 +16,7 @@ opencode/
 ├── data/
 │   ├── paknsave_stores.csv        # 60 stores: store_id (GUID), name, address, city, region, lat, lon
 │   ├── paknsave_store_slugs.csv   # slug → store_id mapping (albany → 65defcf2-...)
-│   └── # woolworths_stores.csv removed - will be regenerated via HTML element selection
+│   └── woolworths_all_stores.csv  # All Woolworths stores extracted from HTML elements
 ├── notebooks/
 │   └── meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
 ├── scripts/
@@ -25,7 +25,8 @@ opencode/
 │   │   └── prototype.py           # CLI: python scripts/paknsave/prototype.py "address" "dish"
 │   └── woolworths/
 │       ├── woolworths_scrape.py   # Playwright headed scraper for search results (name, unit cost, actual price table)
-│       └── # stores_fetch.py removed - will be replaced by HTML element selection script
+│       ├── extract_all_stores.py  # Extracts all Woolworths stores from HTML elements
+│       └── changestore.py         # Work-in-progress: handles store selection dropdown (incomplete)
 ├── AGENTS.md                      # this file
 ├── Handover.md                    # Woolworths NZ reverse-engineering notes
 ├── design.md                      # technical design (API, auth, pipeline)
@@ -41,9 +42,11 @@ opencode/
 | `scripts/paknsave/prototype.py` | CLI entry point. Contains `PaknSaveAPI` class, `DISH_INGREDIENTS` map (21 dishes), geocoding, haversine, store search, price comparison. |
 | `scripts/paknsave/fetch_stores.py` | Data builder. Scrapes `__NEXT_DATA__` for store GUIDs, store-finder HTML for names/addresses, geocodes via Nominatim. Run once or to refresh. |
 | `scripts/woolworths/woolworths_scrape.py` | Playwright headed scraper for search results (name, unit cost, actual price table). |
-| `scripts/woolworths/stores_fetch.py` | Removed - will be replaced by HTML element selection script for automated store discovery |
+| `scripts/woolworths/extract_all_stores.py` | Extracts all Woolworths stores from HTML elements. |
+| `scripts/woolworths/changestore.py` | Work-in-progress: handles store selection dropdown (incomplete). |
 | `notebooks/meal_cost_optimizer.ipynb` | Cells 1–4: setup. Cell 5: markdown. Cell 6: main run (edit `USER_ADDRESS`, `DISH_NAME`). Cell 7: itemised cheapest store table. |
-| `data/woolworths_stores.csv` | Removed - will be regenerated via HTML element selection when automation is implemented |
+| `data/woolworths_all_stores.csv` | All Woolworths stores extracted from HTML elements. |
+| `data/woolworths_stores.csv` | Will be regenerated via HTML element selection for 5km filtering. |
 | `requirements.md` | Pinned deps. Core: `cloudscraper`, `requests`, `pandas`, `numpy`, `beautifulsoup4`, `jupyterlab`. |
 
 ## Key Gotchas
@@ -62,14 +65,14 @@ opencode/
 
 ## File permission rules
 
-- Never access an external directory unless invoking skills. All files runs must be in the project directory.
+- **Never access an external directory unless invoking skills**. All files runs must be in the project directory.
 
 ## Woolworths Research Status
 
 - Per-store pricing is the **primary blocker**. Direct `GET /api/v1/products?target=search` returns 400 with `Header is missing or is invalid.`.
 - Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. Prices visible in DOM (Angular shadow DOM). Search is scoped to a default location; change-location flow must be reverse-engineered for per-store pricing.
-- Store locations are sourced from **manual HTML inspection** (no public Woolworths store API exists); automation will be implemented via HTML element selection.
-- Working tool: `scripts/woolworths/woolworths_scrape.py` (produces a formatted table of product name, unit cost, and actual price). `scripts/woolworths/explore_playwright.py` is throwaway/experimental.
+- Store locations are sourced from **manual HTML inspection** (no public Woolworths store API exists); automation will be implemented later via HTML element selection for 5km filtering.
+- Working tool: `scripts/woolworths/woolworths_scrape.py` (produces a formatted table of product name, unit cost, and actual price).
 
 ## NZ Scope
 

@@ -51,10 +51,6 @@ No public Woolworths NZ store enumeration API exists (`/api/v1/sites`, `/api/v1/
 
 Initially attempted multi-phase regional keyword search but found it insufficient for complete coverage. Switched to manual HTML inspection approach to identify all Woolworths store locations. Automation will be implemented by identifying and selecting the proper HTML elements for store discovery.
 
-## 13. Woolworths store deduplication approach
+## 13. Playwright headed scraping over direct API for Woolworths
 
-Store deduplication will be handled during the HTML element selection process for store discovery. Duplicate entries will be identified and removed based on store name, address, or other unique identifiers found in the Woolworths website HTML structure.
-
-## 14. Playwright headed scraping over direct API for Woolworths
-
-Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown. Next step is to implement store selection functionality to enable per-store pricing queries.
+Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown.

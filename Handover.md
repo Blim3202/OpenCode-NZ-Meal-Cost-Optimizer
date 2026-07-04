@@ -43,8 +43,10 @@ The experimental path is **Playwright-headed scraping** rather than the previous
 
 ## Next Steps
 
-1. Implement store selection functionality by interacting with the identified store selection dropdown on the Woolworths website
-2. Verify that store selection persists and affects search results/scopes
-3. Confirm whether search scope/cookies persist across runs without re-login
-4. Integrate Playwright-based WoolworthsAPI into prototype.py once location scoping is validated
-5. Replace/upstream the temporary woolworths_scrape.py extractor once the data shape is stable
+1. Navigate the store selection dropdown to find and select the specific store we want to change to (now that we have all store names from HTML inspection)
+2. After selecting a store, test that woolworths_scrape.py is working with the new store location and compare if there are price changes
+3. Geocode the Woolworths stores so we know which store to switch to in our search (we only want to search stores within a 5km radius)
+4. Verify that store selection persists and affects search results/scopes
+5. Confirm whether search scope/cookies persist across runs without re-login
+6. Integrate Playwright-based WoolworthsAPI into prototype.py once location scoping is validated
+7. Replace/upstream the temporary woolworths_scrape.py extractor once the data shape is stable

@@ -38,7 +38,7 @@
 
 **Cause**: Many OSM entries are only tagged with local-area names and don't surface under broad national keywords.
 
-**Resolution**: Expanded `scripts/woolworths/stores_fetch.py` to use per-region keyword patterns (`{region} Woolworths`, `Countdown {region}`, etc.) to maximise coverage.
+**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Now resolved via log result 9 (Successful Woolworths Store Identification via Manual HTML Inspection).
 
 ## 6. Woolworths store-finder URL pattern not yet integrated
 
@@ -46,7 +46,7 @@
 
 **Cause**: Internal IDs are client-side routing only; no JSON endpoint exposes the mapping.
 
-**Resolution**: Not yet resolved. Internal IDs remain unmapped to OSM place IDs. Using Nominatim coordinates for now; internal IDs may be needed later if per-store pricing is confirmed.
+**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Now resolved via log result 9 (Successful Woolworths Store Identification via Manual HTML Inspection).
 
 ## 7. Woolworths direct product search API unusable (`400 Header is missing or is invalid.`)
 

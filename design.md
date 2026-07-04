@@ -15,7 +15,7 @@ User input (address + dish)
 
 Base URL: `https://api-prod.prod.fsniwaikato.kiwi/prod`
 
-### Endpoints
+### PAKnSAVE Endpoints
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -23,7 +23,7 @@ Base URL: `https://api-prod.prod.fsniwaikato.kiwi/prod`
 | `/mobile/store/physical` | GET | List all 60 stores (needs auth headers) |
 | `/mobile/ecomm-products/PNS/{storeId}/search?q={query}` | POST | Search products. Body: `[]` |
 
-### Auth Flow
+### PAKnSAVE Auth Flow
 
 1. POST to `/mobile/user/login/guest` with `{"banner": "PNS"}` and `User-Agent: PAKnSAVEApp/4.32.0`
 2. Response contains `access_token` (valid 1800s / 30 min)
@@ -32,7 +32,7 @@ Base URL: `https://api-prod.prod.fsniwaikato.kiwi/prod`
    - `access_token: {token}`
 4. Token is auto-refreshed by `PaknSaveAPI._ensure_token()` when expired
 
-### Product Search Response
+### PAKnSAVE Product Search Response
 
 ```json
 {
@@ -57,7 +57,7 @@ Base URL: `https://api-prod.prod.fsniwaikato.kiwi/prod`
 - Results sorted by relevance, not price. Always take `products[0]` (most relevant).
 - `cloudscraper` is NOT needed for API calls — no Cloudflare on the API domain.
 
-### Store Data Sources
+### PAKnSAVE Store Data Sources
 
 1. **Mobile API** (`/mobile/store/physical`): 60 stores, precise coords, accurate names. Returns `{"stores": [...]}`.
 2. **CSV fallback** (`data/paknsave_stores.csv`): pre-built from `__NEXT_DATA__` + Nominatim geocoding. Same `store_id` UUIDs as API.

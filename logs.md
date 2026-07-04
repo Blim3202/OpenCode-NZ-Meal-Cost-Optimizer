@@ -8,7 +8,7 @@
 
 **Resolution**: Accept that some items have misleading per-kg pricing. The crushed garlic jar ($2.29) is a more practical result and sometimes appears instead. This is a known limitation.
 
-## 2. Store slug matching failures
+## 2. PAKnSAVE store slug matching failures
 
 **Symptom**: Some stores didn't match between the store-finder page slugs and the `__NEXT_DATA__` GUIDs.
 

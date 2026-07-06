@@ -74,4 +74,8 @@
 **Cause**: Previous Nominatim/OSM approach was incomplete, and manual HTML inspection was unsustainable.
 **Resolution**: Discovered the public Woolworths site-location API (`https://api.cdx.nz/site-location/api/v1/sites`). Implemented `scripts/woolworths/Extract_woolworths_API_JSON.py` to fetch, parse, and save this data to `data/woolworths_stores_API.json` and `data/woolworths_stores.csv`.
 
-**Next Steps**: Develop `scripts/woolworths/woolworths_prototype.py` to utilize this data to find stores within a 5km radius, and then integrate the store selection logic.
+## 11. Breakthrough in Woolworths Store Identification and Data Joining
+
+**Symptom**: Previous name-matching approach was unreliable for selecting stores within the dropdown.
+**Cause**: Store names in dropdown choices didn't consistently match location API names.
+**Resolution**: Successfully discovered that both datasets contain a common ID. Created `Get_woolworths_API_data.py`, `Get_woolworths_store_choices.py`, and `Merge_woolworths_stores.py` to fetch both sets and merge them into `data/woolworths_stores.csv`. This enables reliable store selection by ID.

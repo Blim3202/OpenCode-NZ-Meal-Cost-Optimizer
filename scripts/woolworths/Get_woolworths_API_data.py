@@ -6,13 +6,6 @@ import csv
 # This API endpoint was manually discovered by inspecting network sources on webpage refreshes-
 # while on the https://www.woolworths.co.nz/store-finder/search webpage.
 # It provides a JSON output of Woolworths (formerly Countdown) store locations.
-WOOLWORTHS_API_BASE_URL = "https://api.cdx.nz/site-location/api/v1/sites"
-DEFAULT_LATITUDE = -41.24564052749397
-DEFAULT_LONGITUDE = 173.1994906580824
-# DEFAULT_MAX_RESULTS = 20 # Needs to be hidden to get all stores
-DATA_DIR = "data"
-OUTPUT_FILE = os.path.join(DATA_DIR, "woolworths_stores_API.json")
-CSV_FILE = os.path.join(DATA_DIR, "woolworths_stores.csv")
 
 def clean_null(value):
     """Clean null or empty values to return a default string."""
@@ -24,6 +17,17 @@ def clean_null(value):
 
 def fetch_and_save_woolworths_stores():
     """Fetches store data from API URL and saves JSON and structured data into CSV."""
+
+    # Config
+    WOOLWORTHS_API_BASE_URL = "https://api.cdx.nz/site-location/api/v1/sites"
+    DEFAULT_LATITUDE = -41.24564052749397
+    DEFAULT_LONGITUDE = 173.1994906580824
+    # DEFAULT_MAX_RESULTS = 20 # Needs to be hidden to get all stores
+    DATA_DIR = "data"
+    JSON_FILE = os.path.join(DATA_DIR, "woolworths_store_data.json")
+    CSV_FILE = os.path.join(DATA_DIR, "woolworths_store_data.csv")
+
+    # Headers
     headers = {
         ## Do not unhide the formatting - dosent give an output
         # "accept": "application/json, text/plain, */*",
@@ -41,13 +45,14 @@ def fetch_and_save_woolworths_stores():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
     }
     
+    # Params
     params = {
         "latitude": DEFAULT_LATITUDE,
         "longitude": DEFAULT_LONGITUDE,
         # "maxResults": DEFAULT_MAX_RESULTS
     }
 
-    print(f"Fetching data from: {WOOLWORTHS_API_BASE_URL} with parameters {params}")
+    print(f"⏳ Fetching data from: {WOOLWORTHS_API_BASE_URL} with parameters {params}")
     try:
         response = requests.get(WOOLWORTHS_API_BASE_URL, headers=headers, params=params, timeout=20)
         response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
@@ -59,23 +64,23 @@ def fetch_and_save_woolworths_stores():
         os.makedirs(DATA_DIR, exist_ok=True)
 
         # save the JSON data
-        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        with open(JSON_FILE, 'w', encoding='utf-8') as f:
             json.dump(stores_data, f, indent=4, ensure_ascii=False)
-        print(f"Successfully downloaded and saved store JSON data to {OUTPUT_FILE}")
+        print(f"✅ Successfully downloaded and saved store JSON data to {JSON_FILE}")
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching data: {e}")
+        print(f"❌ Error fetching data: {e}")
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON response: {e}")
+        print(f"❌ Error decoding JSON response: {e}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"❌ An unexpected error occurred: {e}")
     
 
     if response:
         # Parse the API response and save as CSV.
         sites = stores_data.get('siteDetail', [])
         if not sites:
-            print("No site data found in the response.")
+            print("❌ No site data found in the response.")
             return
 
         # Prepare data for our table
@@ -89,20 +94,15 @@ def fetch_and_save_woolworths_stores():
             address = clean_null(site.get('addressLine1'))
             postcode = clean_null(site.get('postcode'))
             state = clean_null(site.get('state'))
-            distance = f"{item.get('distanceInKms', 'N/A')} km"
+            # IMPORTANT - get the matching ID that links store ID (data) to store ID (pickup)
+            SiteDataID = clean_null(site.get('extra2'))
+            latitude = clean_null(site.get('latitude'))
+            longitude = clean_null(site.get('longitude'))
             # Extract facilities
             facilities = site.get('facilityList', {}).get('facility', [])
             facilities_str = ", ".join(facilities) if facilities else "None listed"
-            # Extract representative trading hours (e.g., Monday from the first available week)
-            # trading_hours_list = item.get('tradingHours', [])
-            # hours_str = "N/A"
-            # if trading_hours_list:
-            #     week_data = trading_hours_list[0]
-            #     monday = week_data.get('monday', {})
-            #     if monday:
-            #         start = monday.get('startTime', '?')
-            #         end = monday.get('endTime', '?')
-            #         hours_str = f"Mon: {start} - {end}"
+            
+
             # Append as a row
             table_data.append([
                 name,
@@ -110,20 +110,22 @@ def fetch_and_save_woolworths_stores():
                 address,
                 postcode,
                 state,
-                # hours_str,
-                distance,
+                SiteDataID, # KEY
+                latitude,
+                longitude,
                 facilities_str
             ])
-            # Define table headers
-
+            
+        # Define table headers
         headers = [
             "Store Name", 
             "Suburb", 
             "Address", 
             "Postcode", 
             "State", 
-            # "Representative Hours",
-            "Distance", 
+            "SiteDataID",
+            "latitude",
+            "longitude",
             "Key Facilities"
         ]
 
@@ -133,8 +135,7 @@ def fetch_and_save_woolworths_stores():
             writer = csv.writer(csvfile)
             writer.writerow(headers)
             writer.writerows(table_data)
-            print(f"Successfully saved structured data for {len(sites)} woolworths stores at {OUTPUT_FILE}.\n")
-
+            print(f"✅ Successfully saved structured data for {len(sites)} woolworths stores at {JSON_FILE}.\n")
 
 
 if __name__ == "__main__":

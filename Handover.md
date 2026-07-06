@@ -1,6 +1,6 @@
 # Woolworths NZ - Reverse Engineering Handover
 
-Status: Experimenting with Playwright (headed Chromium) to scrape search results page. Direct API pathway abandoned.
+Status: Breakthrough in store identification. Store selection dropdown choices matched with location API data via common ID.
 
 ## Current Findings
 
@@ -38,13 +38,11 @@ Status: Experimenting with Playwright (headed Chromium) to scrape search results
 The experimental path is **Playwright-headed scraping** rather than the previously doctored direct REST pathway. Rationale:
 - Search endpoint `target=search` is blocked/header-gated without a verified session context
 - Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM
-- Per-store scoping approach changed: Instead of reversing the change-location flow, we have identified the store selection dropdown through manual inspection and will implement store selection directly through HTML element interaction
+- Breakthrough: Joined Woolworths store dropdown choices and location data using a common ID. We will now implement store selection through HTML element interaction using this matched data.
 
 ## Next Steps
-1. Implement filtering for the Woolworths stores from woolworths_stores.csv within a 5km radius.
-2. Navigate the store selection dropdown to find and select the specific store we want to change to.
-3. After selecting a store, test that woolworths_scrape.py is working with the new store location and compare if there are price changes
-4. Verify that store selection persists and affects search results/scopes
-5. Confirm whether search scope/cookies persist across runs without re-login
-6. Integrate Playwright-based WoolworthsAPI into Woolworths_prototype.py once location scoping is validated
-7. Replace/upstream the temporary woolworths_scrape.py extractor once the data shape is stable
+1. Filter the merged Woolworths stores (woolworths_stores.csv) within a 5km radius.
+2. Automate store selection in ChangeStore.py by using the matched store ID to select the correct store in the dropdown.
+3. Test woolworths_scrape.py with the new store location and verify price changes.
+4. Verify that store selection persists and affects search results/scopes.
+5. Integrate Playwright-based WoolworthsAPI into Woolworths_prototype.py once location scoping is validated.

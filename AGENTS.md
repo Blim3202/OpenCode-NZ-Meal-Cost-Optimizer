@@ -16,8 +16,11 @@ opencode/
 ├── data/
 │   ├── paknsave_stores.csv        # 60 stores: store_id (GUID), name, address, city, region, lat, lon
 │   ├── paknsave_store_slugs.csv   # slug → store_id mapping (albany → 65defcf2-...)
-│   ├── woolworths_stores.csv      # Woolworths store list generated from API data
-│   └── woolworths_stores_API.json # Stores location data fetched from API
+│   ├── woolworths_stores.csv      # Merged Woolworths store list (choices + locations)
+│   ├── woolworths_store_choices.csv
+│   ├── woolworths_store_choices.json
+│   ├── woolworths_store_data.csv
+│   └── woolworths_store_data.json
 ├── notebooks/
 │   └── meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
 ├── scripts/
@@ -26,7 +29,9 @@ opencode/
 │   │   └── PaknSave_prototype.py  # CLI: python scripts/paknsave/PaknSave_prototype.py "address" "dish"
 │   └── woolworths/
 │       ├── woolworths_scrape.py   # Playwright headed scraper for search results
-│       ├── Extract_woolworths_API_JSON.py # Extracts Woolworths store locations from the discovered API
+│       ├── Get_woolworths_API_data.py # Fetches Woolworths store location data
+│       ├── Get_woolworths_store_choices.py # Fetches Woolworths store dropdown choices
+│       ├── Merge_woolworths_stores.py # Joins choices and data via ID
 │       └── ChangeStore.py         # Work-in-progress: handles store selection dropdown
 ├── AGENTS.md                      # this file
 ├── Handover.md                    # Woolworths NZ reverse-engineering notes
@@ -43,6 +48,9 @@ opencode/
 | `scripts/paknsave/prototype.py` | CLI entry point. Contains `PaknSaveAPI` class, `DISH_INGREDIENTS` map (21 dishes), geocoding, haversine, store search, price comparison. |
 | `scripts/paknsave/fetch_stores.py` | Data builder. Scrapes `__NEXT_DATA__` for store GUIDs, store-finder HTML for names/addresses, geocodes via Nominatim. Run once or to refresh. |
 | `scripts/woolworths/woolworths_scrape.py` | Playwright headed scraper for search results (name, unit cost, actual price table). |
+| `scripts/woolworths/Get_woolworths_API_data.py` | Fetches Woolworths store location data from API. |
+| `scripts/woolworths/Get_woolworths_store_choices.py` | Fetches Woolworths store dropdown choices from booking page. |
+| `scripts/woolworths/Merge_woolworths_stores.py` | Joins Woolworths choices and data via common ID. |
 | `scripts/woolworths/extract_all_stores.py` | Extracts all Woolworths stores from HTML elements. |
 | `scripts/woolworths/changestore.py` | Work-in-progress: handles store selection dropdown (incomplete). |
 | `notebooks/meal_cost_optimizer.ipynb` | Cells 1–4: setup. Cell 5: markdown. Cell 6: main run (edit `USER_ADDRESS`, `DISH_NAME`). Cell 7: itemised cheapest store table. |
@@ -70,12 +78,11 @@ opencode/
 
 ## Woolworths Research Status
 
-- Per-store pricing is the **primary blocker**. Direct `GET /api/v1/products?target=search` returns 400 with `Header is missing or is invalid.`.
-- Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. Prices visible in DOM (Angular shadow DOM). Search is scoped to a default location; change-location flow must be reverse-engineered for per-store pricing.
-- Store locations are sourced from the **Woolworths site-location API** (discovered via network inspection). 
+- Per-store pricing is the **primary blocker**.
+- Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. 
+- Breakthrough: Joined Woolworths store dropdown choices with location API data via common ID. This enables reliable store identification and filtering by distance.
 - Need to implement automation to fetch and filter stores within 5km of user address.
 - Working tool: `scripts/woolworths/woolworths_scrape.py` (produces a formatted table of product name, unit cost, and actual price).
-- New tool: `scripts/woolworths/Extract_woolworths_API_JSON.py` (extracts store list from API).
 
 ## NZ Scope
 

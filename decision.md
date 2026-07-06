@@ -52,3 +52,7 @@ Store locations are now fetched and converted to CSV automatically using `script
 ## 13. Playwright headed scraping over direct API for Woolworths
 
 Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown.
+
+## 14. Joined Woolworths store datasets via common ID
+
+Successfully linked store names (from dropdown choices API) with latitude/longitude (from location API) using a common ID. This allows for accurate store identification and filtering by distance, resolving previous name-matching issues.

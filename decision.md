@@ -43,13 +43,11 @@ Free, no API key needed, sufficient accuracy for NZ addresses. Rate limit of 1 r
 
 Chosen for easy experimentation — user can edit inputs and re-run cells without touching the terminal. CLI (`prototype.py`) available as alternative.
 
-## 11. Manual HTML inspection for Woolworths store locations
+## 11. API-based Woolworths store discovery
+Woolworths store locations are identified via a discovered JSON API (`https://api.cdx.nz/site-location/api/v1/sites`). This replaces manual HTML inspection and provides complete, structured, and filterable store data.
 
-No public Woolworths NZ store enumeration API exists (`/api/v1/sites`, `/api/v1/stores`, `/api/store-finder` all return 404). Store locations identified through manual HTML inspection of the Woolworths website. Automation will be implemented by finding the proper HTML elements for store discovery.
-
-## 12. Store discovery approach for Woolworths
-
-Initially attempted multi-phase regional keyword search but found it insufficient for complete coverage. Switched to manual HTML inspection approach to identify all Woolworths store locations. Automation will be implemented by identifying and selecting the proper HTML elements for store discovery.
+## 12. Automated store discovery
+Store locations are now fetched and converted to CSV automatically using `scripts/woolworths/Extract_woolworths_API_JSON.py`. This approach provides complete coverage and allows for automated filtering based on distance.
 
 ## 13. Playwright headed scraping over direct API for Woolworths
 

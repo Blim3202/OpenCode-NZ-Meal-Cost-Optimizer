@@ -30,7 +30,7 @@
 
 **Cause**: The Angular SPA store-finder is JavaScript-rendered; no public JSON API exists for a full store list.
 
-**Resolution**: Abandoned public API enumeration. Switched to OpenStreetMap/Nominatim as store location source.
+**Resolution**: Abandoned public API enumeration. Switched to OpenStreetMap/Nominatim as store location source. Succeeded by Log 10 (Woolworths API Discovery).
 
 ## 5. Initial Woolworths keyword search insufficient
 
@@ -38,7 +38,7 @@
 
 **Cause**: Many OSM entries are only tagged with local-area names and don't surface under broad national keywords.
 
-**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Now resolved via log result 9 (Successful Woolworths Store Identification via Manual HTML Inspection).
+**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Succeeded by Log 10 (Woolworths API Discovery).
 
 ## 6. Woolworths store-finder URL pattern not yet integrated
 
@@ -46,7 +46,7 @@
 
 **Cause**: Internal IDs are client-side routing only; no JSON endpoint exposes the mapping.
 
-**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Now resolved via log result 9 (Successful Woolworths Store Identification via Manual HTML Inspection).
+**Resolution**: We are no longer using Nominatim for Woolworths store locations. Instead, we have extracted all (pickup location) stores through inspecting the HTML elements. This approach provides complete coverage of all NZ Woolworths stores. Succeeded by Log 10 (Woolworths API Discovery).
 
 ## 7. Woolworths direct product search API unusable (`400 Header is missing or is invalid.`)
 
@@ -65,11 +65,13 @@
 **Resolution**: Use headed mode with `headless=False` and standard user-agent/locale/timezone settings. Search and DOM extraction work reliably in this configuration.
 
 ## 9. Successful Woolworths Store Identification via Manual HTML Inspection
-
 **Symptom**: Needed to obtain comprehensive Woolworths store locations for NZ to enable per-store pricing queries.
-
 **Cause**: Previous Nominatim/OSM approach via stores_fetch.py was incomplete and required automation that wasn't yet implemented. Manual inspection approach was needed to identify all store locations.
+**Resolution**: Successfully inspected Woolworths website HTML to identify all store locations. Determined that stores_fetch.py and woolworths_stores.csv can be deleted pending implementation of proper HTML element selection for automation. Successfully navigated to the store selection dropdown on the Woolworths website, ready to implement store selection functionality. Succeeded by Log 10 (Woolworths API Discovery).
 
-**Resolution**: Successfully inspected Woolworths website HTML to identify all store locations. Determined that stores_fetch.py and woolworths_stores.csv can be deleted pending implementation of proper HTML element selection for automation. Successfully navigated to the store selection dropdown on the Woolworths website, ready to implement store selection functionality.
+## 10. Successful Woolworths Store Identification via API
+**Symptom**: Needed a reliable, automated way to obtain comprehensive Woolworths store locations for NZ to enable per-store pricing queries.
+**Cause**: Previous Nominatim/OSM approach was incomplete, and manual HTML inspection was unsustainable.
+**Resolution**: Discovered the public Woolworths site-location API (`https://api.cdx.nz/site-location/api/v1/sites`). Implemented `scripts/woolworths/Extract_woolworths_API_JSON.py` to fetch, parse, and save this data to `data/woolworths_stores_API.json` and `data/woolworths_stores.csv`.
 
-**Next Steps**: Implement store selection logic, verify selection persists and affects search scope, then re-implement automated store discovery through proper HTML element selection.
+**Next Steps**: Develop `scripts/woolworths/woolworths_prototype.py` to utilize this data to find stores within a 5km radius, and then integrate the store selection logic.

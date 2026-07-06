@@ -28,11 +28,10 @@ Status: Experimenting with Playwright (headed Chromium) to scrape search results
 
 ## Store Data
 
-- **Source**: Manual HTML inspection of Woolworths website (no public store enumeration API exists)
-- **Schema**: To be determined based on HTML element selection for store discovery
-- **Coverage**: All NZ Woolworths stores identified through manual inspection
-- **Collection etiquette**: Manual inspection completed; automated collection will be implemented via HTML element selection with appropriate rate limiting
-- - No public store enumeration API found; internal Woolworths numeric IDs visible in UI bundles but not yet mapped
+- **Source**: Discovered Woolworths site-location API (`https://api.cdx.nz/site-location/api/v1/sites`)
+- **Schema**: JSON based on API response
+- **Coverage**: All NZ Woolworths stores via API
+- **Collection**: Automated collection via API request in `scripts/woolworths/Extract_woolworths_API_JSON.py`
 
 ## Architecture Decision
 
@@ -42,11 +41,10 @@ The experimental path is **Playwright-headed scraping** rather than the previous
 - Per-store scoping approach changed: Instead of reversing the change-location flow, we have identified the store selection dropdown through manual inspection and will implement store selection directly through HTML element interaction
 
 ## Next Steps
-
-1. Navigate the store selection dropdown to find and select the specific store we want to change to (now that we have all store names from HTML inspection)
-2. After selecting a store, test that woolworths_scrape.py is working with the new store location and compare if there are price changes
-3. Geocode the Woolworths stores so we know which store to switch to in our search (we only want to search stores within a 5km radius)
+1. Implement filtering for the Woolworths stores from woolworths_stores.csv within a 5km radius.
+2. Navigate the store selection dropdown to find and select the specific store we want to change to.
+3. After selecting a store, test that woolworths_scrape.py is working with the new store location and compare if there are price changes
 4. Verify that store selection persists and affects search results/scopes
 5. Confirm whether search scope/cookies persist across runs without re-login
-6. Integrate Playwright-based WoolworthsAPI into prototype.py once location scoping is validated
+6. Integrate Playwright-based WoolworthsAPI into Woolworths_prototype.py once location scoping is validated
 7. Replace/upstream the temporary woolworths_scrape.py extractor once the data shape is stable

@@ -16,17 +16,18 @@ opencode/
 ├── data/
 │   ├── paknsave_stores.csv        # 60 stores: store_id (GUID), name, address, city, region, lat, lon
 │   ├── paknsave_store_slugs.csv   # slug → store_id mapping (albany → 65defcf2-...)
-│   └── woolworths_all_stores.csv  # All Woolworths stores extracted from HTML elements
+│   ├── woolworths_stores.csv      # Woolworths store list generated from API data
+│   └── woolworths_stores_API.json # Stores location data fetched from API
 ├── notebooks/
 │   └── meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
 ├── scripts/
 │   ├── paknsave/
 │   │   ├── fetch_stores.py        # one-shot: builds paknsave_stores.csv from __NEXT_DATA__ + Nominatim
-│   │   └── prototype.py           # CLI: python scripts/paknsave/prototype.py "address" "dish"
+│   │   └── PaknSave_prototype.py  # CLI: python scripts/paknsave/PaknSave_prototype.py "address" "dish"
 │   └── woolworths/
-│       ├── woolworths_scrape.py   # Playwright headed scraper for search results (name, unit cost, actual price table)
-│       ├── extract_all_stores.py  # Extracts all Woolworths stores from HTML elements
-│       └── changestore.py         # Work-in-progress: handles store selection dropdown (incomplete)
+│       ├── woolworths_scrape.py   # Playwright headed scraper for search results
+│       ├── Extract_woolworths_API_JSON.py # Extracts Woolworths store locations from the discovered API
+│       └── ChangeStore.py         # Work-in-progress: handles store selection dropdown
 ├── AGENTS.md                      # this file
 ├── Handover.md                    # Woolworths NZ reverse-engineering notes
 ├── design.md                      # technical design (API, auth, pipeline)
@@ -71,8 +72,10 @@ opencode/
 
 - Per-store pricing is the **primary blocker**. Direct `GET /api/v1/products?target=search` returns 400 with `Header is missing or is invalid.`.
 - Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. Prices visible in DOM (Angular shadow DOM). Search is scoped to a default location; change-location flow must be reverse-engineered for per-store pricing.
-- Store locations are sourced from **manual HTML inspection** (no public Woolworths store API exists); automation will be implemented later via HTML element selection for 5km filtering.
+- Store locations are sourced from the **Woolworths site-location API** (discovered via network inspection). 
+- Need to implement automation to fetch and filter stores within 5km of user address.
 - Working tool: `scripts/woolworths/woolworths_scrape.py` (produces a formatted table of product name, unit cost, and actual price).
+- New tool: `scripts/woolworths/Extract_woolworths_API_JSON.py` (extracts store list from API).
 
 ## NZ Scope
 

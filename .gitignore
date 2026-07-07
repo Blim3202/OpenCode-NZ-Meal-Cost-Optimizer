@@ -5,3 +5,5 @@ __pycache__/
 .ignore
 .Temp
 .legacy
+.kilo
+.opencode

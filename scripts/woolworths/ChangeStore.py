@@ -3,9 +3,10 @@ import time
 from playwright.sync_api import sync_playwright
 
 # Configuration
-URL = "https://www.woolworths.co.nz/"
-BOOKATIMESLOT_URL = "https://www.woolworths.co.nz/bookatimeslot"
+# Go straight to the store change dropdown url
+MODAL_URL = "https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store)"
 OUT_DIR = os.path.join(".", ".Temp")
+STORE = "Woolworths Birkenhead"
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
@@ -19,8 +20,8 @@ def save_html(page, step_name):
     return out_path
 
 def main():
-    print("Starting Woolworths store change investigation...")
-    
+    print("Starting Woolworths Birkenhead selection test...")
+
     with sync_playwright() as p:
         print("Launching headed Chromium...")
         browser = p.chromium.launch(
@@ -40,84 +41,38 @@ def main():
             viewport={"width": 1280, "height": 800},
         )
         page = context.new_page()
+
+        # Step 1: Navigate directly to modal
+        print(f"Navigating to {MODAL_URL}...")
+        page.goto(MODAL_URL, wait_until="domcontentloaded", timeout=60000)
+
+        # Step 2: Dropdown Selection
+        dropdown_selector = 'select[id*="area-dropdown"]' # Selects the element if the ID contains "area-dropdown" anywhere (should be dropdown 0)
+        page.wait_for_selector(dropdown_selector, timeout=30000)
+        dropdown = page.locator(dropdown_selector)
         
-        ### Step 1: Navigate to the homepage ###
-        print("\n1. Navigating to homepage...")
-        page.goto(URL, wait_until="domcontentloaded", timeout=30000)
-        time.sleep(5)
-        save_html(page, "homepage")
+        # Select "All Pick up locations"
+        dropdown.select_option(label="All Pick up locations") # Selects the drop down with the "All Pick up locations option"
+        time.sleep(5) # Allow list to update
+        save_html(page, "after_dropdown")
 
 
-        ### Step 2: Navigate to booking a timeslot ###
-        print("\n2. go to bookatimeslot page...")
-        book_found = False
-        try:
-            loc = page.get_by_text("Change location", exact=False)
-            if loc.count() > 0:
-                print("Found 'Change location' on homepage")
-                loc.first.click()
-                book_found = True
-        except Exception as e:
-            print(f"Homepage 'Change location' probe error: {e}")
-
-        if book_found:
-            time.sleep(3)
-            save_html(page, "bookatimeslot")
-            print(f"Post-click URL: {page.url}")
-        else:
-            print("Could not find 'Change store' button with selector")
-            browser.close()
+        # Step 3: Select Birkenhead
+        print(f"Selecting '{STORE}'...")
+        # Find the button with text e.g, "Woolworths Birkenhead"
+        # Using get_by_role for robust matching
+        store_btn = page.get_by_role("button", name=STORE)
         
-
-        ### Step 3: Click the pickup radio button ###
-        print("\nStep 3: Click the pickup radio button...")
-        pickup_found = False
-        pickup_radio = page.locator('input#method-pickup[type="radio"]')
-        try:
-            if pickup_radio.count() > 0:
-                print("Found pickup radio button, clicking...")
-                pickup_radio.first.click()
-                pickup_found = True
-        except Exception as e: 
-             print(f"Pickup radio probe error: {e}")
-
-        if book_found:
-            time.sleep(3)
-            save_html(page, "pickup")
-            print(f"Post-click URL: {page.url}")
-        else:
-            print("Could not find 'Pickup' radio button with selector")
-            browser.close()      
-
-        ### Step 4: Click the change store button ###
-        print("\nStep 4: Click the change store button...")
-        changestore_found = False
-        change_store_selector = 'button[data-cy="link"]:has-text("Change store")'
-        change_store_button = page.locator(change_store_selector)
-        pickup_radio = page.locator('input#method-pickup[type="radio"]')
-
-        try:    
-            if change_store_button.count() > 0:
-                print("Found change store button, clicking...")
-                change_store_button.first.click()
-                changestore_found = True
-        except Exception as e: 
-             print(f"Change store button probe error: {e}")
-
-        if changestore_found:
-            time.sleep(3)
-            save_html(page, "changestore")
-            print(f"Post-click URL: {page.url}")
-        else:
-            print("Could not find 'change store' button with selector")
-            browser.close()      
+        # Wait for button to be clickable
+        store_btn.wait_for(state="visible", timeout=10000)
+        store_btn.click()
         
+        print(f"Clicked '{STORE}'. Waiting for UI update...")
+        time.sleep(10) # Wait for selection process to complete
+        save_html(page, "after_selection")
 
-
+        print("Test completed.")
         browser.close()
-
-
-
 
 if __name__ == "__main__":
     main()

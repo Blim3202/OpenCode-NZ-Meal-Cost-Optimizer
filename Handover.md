@@ -1,19 +1,21 @@
 # Woolworths NZ - Reverse Engineering Handover
 
-Status: Breakthrough in store identification. Store selection dropdown choices matched with location API data via common ID.
+Status: Breakthrough in store identification and automated selection. Store selection dropdown choices matched with location API data via common ID, and direct URL-based modal interaction implemented.
 
 ## Current Findings
 
 - **Homepage & search page accessible via Playwright** (both headed and direct navigation modes return 200).
+- **Store selection automated**: Direct navigation to `https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store)` allows reliable store selection via the modal.
 - **Search interaction works**: input `input[type="search"]` accepts text and navigates to `https://www.woolworths.co.nz/shop/searchproducts?search=<term>`.
 - **412 products rendered** for `milk` query inside Angular shadow DOM components (`product-stamp-grid > div.product-entry`).
 - **Prices visible** as plain text in the DOM — no authentication required to view search results.
-- Pricing appears global within a detected location context (page shows: "You're seeing information for the Glenfield area"). Change-location flow is the next scoping experiment.
+- Pricing updates based on the selected store. Needs to be fullt tested
 - **Direct async API call** `GET /api/v1/products?target=search&search=...` returns `400 Header is missing or is invalid.` — explored briefly and abandoned.
 
 ## Implemented
 
-- **Playwright scraper built**: `scripts/woolworths/woolworths_scrape.py` combines the standalone headed navigation (previously in `explore_playwright.py`) with live DOM product extraction.
+- **Playwright scraper built**: `scripts/woolworths/woolworths_scrape.py` combines the standalone headed navigation with live DOM product extraction.
+- **Store selection automated**: `scripts/woolworths/ChangeStore.py` uses direct modal navigation to reliably set the store context.
 - **Product extraction pattern confirmed** from rendered search HTML:
   - Name: `h3[id$="-title"]`
   - Unit cost: `[id$="-unitPrice"] .cupPrice` (e.g. `$3.02 / 1L`)
@@ -38,11 +40,10 @@ Status: Breakthrough in store identification. Store selection dropdown choices m
 The experimental path is **Playwright-headed scraping** rather than the previously doctored direct REST pathway. Rationale:
 - Search endpoint `target=search` is blocked/header-gated without a verified session context
 - Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM
-- Breakthrough: Joined Woolworths store dropdown choices and location data using a common ID. We will now implement store selection through HTML element interaction using this matched data.
+- Breakthrough: Joined Woolworths store dropdown choices and location data using a common ID and implemented direct URL modal interaction for store selection.
 
 ## Next Steps
 1. Filter the merged Woolworths stores (woolworths_stores.csv) within a 5km radius.
-2. Automate store selection in ChangeStore.py by using the matched store ID to select the correct store in the dropdown.
-3. Test woolworths_scrape.py with the new store location and verify price changes.
-4. Verify that store selection persists and affects search results/scopes.
-5. Integrate Playwright-based WoolworthsAPI into Woolworths_prototype.py once location scoping is validated.
+2. Integrate Playwright-based Woolworths store selection and scraping into the new `notebooks/Woolworths_meal_cost_optimizer.ipynb`.
+3. Verify that store selection persists and affects search results/scopes within the notebook.
+4. Integrate Playwright-based WoolworthsAPI into woolworths optimiszer notebook once processes validated.

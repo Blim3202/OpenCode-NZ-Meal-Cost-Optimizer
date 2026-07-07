@@ -78,11 +78,9 @@ opencode/
 
 ## Woolworths Research Status
 
-- Per-store pricing is the **primary blocker**.
-- Current path: **Playwright headed scraping** of `/shop/searchproducts?search=...`. 
-- Breakthrough: Joined Woolworths store dropdown choices with location API data via common ID. This enables reliable store identification and filtering by distance.
-- Need to implement automation to fetch and filter stores within 5km of user address.
-- Working tool: `scripts/woolworths/woolworths_scrape.py` (produces a formatted table of product name, unit cost, and actual price).
+- Per-store pricing is now discoverable with store picker working. Needs to be implemented in full pipeline change store -> scrape -> change store to test persistency of cookies.
+- Store selection is automated via direct URL interaction (`/bookatimeslot/(hww-modal:change-pick-up-store)`).
+- Working tools: `scripts/woolworths/ChangeStore.py` and `scripts/woolworths/woolworths_scrape.py`.
 
 ## NZ Scope
 

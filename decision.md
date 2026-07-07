@@ -56,3 +56,6 @@ Initial testing of `GET /api/v1/products?target=search&search=milk` returned `40
 ## 14. Joined Woolworths store datasets via common ID
 
 Successfully linked store names (from dropdown choices API) with latitude/longitude (from location API) using a common ID. This allows for accurate store identification and filtering by distance, resolving previous name-matching issues.
+
+## 15. Direct Store Selection via URL
+Chose to use `https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store)` to bypass complex dropdown navigation and directly trigger the store selection modal, enabling reliable automated store selection.

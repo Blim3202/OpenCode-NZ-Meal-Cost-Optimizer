@@ -79,3 +79,8 @@
 **Symptom**: Previous name-matching approach was unreliable for selecting stores within the dropdown.
 **Cause**: Store names in dropdown choices didn't consistently match location API names.
 **Resolution**: Successfully discovered that both datasets contain a common ID. Created `Get_woolworths_API_data.py`, `Get_woolworths_store_choices.py`, and `Merge_woolworths_stores.py` to fetch both sets and merge them into `data/woolworths_stores.csv`. This enables reliable store selection by ID.
+
+## 12. Successful Automated Store Selection via URL
+**Symptom**: Need reliable automated store selection to ensure pricing data reflects the correct user location.
+**Cause**: Previous approaches (complex dropdown interactions) were fragile.
+**Resolution**: Implemented `scripts/woolworths/ChangeStore.py` using direct navigation to the Woolworths store selection modal URL (`/bookatimeslot/(hww-modal:change-pick-up-store)`), which reliably allows programmatically setting the store context.

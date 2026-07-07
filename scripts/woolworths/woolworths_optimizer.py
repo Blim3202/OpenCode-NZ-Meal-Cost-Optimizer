@@ -4,6 +4,7 @@ import math
 import requests
 import time
 import asyncio
+import os
 from pathlib import Path
 from playwright.async_api import async_playwright
 
@@ -168,8 +169,10 @@ async def main():
 
     user_lat, user_lon = geocode(USER_ADDRESS)
     
-    # Path is relative to the script execution in this case
-    stores = load_and_filter_stores(user_lat, user_lon, "data/woolworths_stores.csv").head(2)
+    # Construct robust path relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    stores_csv_path = os.path.join(script_dir, '..', '..', 'data', 'woolworths_stores.csv')
+    stores = load_and_filter_stores(user_lat, user_lon, stores_csv_path).head(2)
     ingredients = get_ingredients(DISH_NAME)
     
     async with async_playwright() as p:

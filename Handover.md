@@ -42,6 +42,12 @@ The experimental path is **Playwright-headed scraping** rather than the previous
 - Search results are rendered client-side from Angular components, which Playwright can read via shadow DOM
 - Breakthrough: Joined Woolworths store dropdown choices and location data using a common ID and implemented direct URL modal interaction for store selection.
 
+## Jupyter Integration
+
+- **Integrated Pipeline**: The pipeline is fully integrated into `notebooks/Woolworths_meal_cost_optimizer.ipynb`.
+- **Standalone Scraping**: To circumvent Windows `NotImplementedError` regarding `asyncio` subprocesses in Jupyter, the scraper runs as an independent process via `subprocess.Popen`.
+- **Results Handling**: Data is saved to `data/latest_results.csv` by the scraper, which is subsequently ingested by the notebook's `analyze_results` function for formatted calculation and display.
+
 ## Next Steps
 1. Filter the merged Woolworths stores (woolworths_stores.csv) within a 5km radius.
 2. Integrate Playwright-based Woolworths store selection and scraping into the new `notebooks/Woolworths_meal_cost_optimizer.ipynb`.

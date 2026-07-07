@@ -22,7 +22,8 @@ opencode/
 │   ├── woolworths_store_data.csv
 │   └── woolworths_store_data.json
 ├── notebooks/
-│   └── meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
+│   ├── PaknSave_meal_cost_optimizer.ipynb  # 8-cell Jupyter prototype (run cell 6 with your inputs)
+│   └── Woolworths_meal_cost_optimizer.ipynb # Woolworths Jupyter pipeline
 ├── scripts/
 │   ├── paknsave/
 │   │   ├── fetch_stores.py        # one-shot: builds paknsave_stores.csv from __NEXT_DATA__ + Nominatim
@@ -53,9 +54,10 @@ opencode/
 | `scripts/woolworths/Merge_woolworths_stores.py` | Joins Woolworths choices and data via common ID. |
 | `scripts/woolworths/extract_all_stores.py` | Extracts all Woolworths stores from HTML elements. |
 | `scripts/woolworths/changestore.py` | Work-in-progress: handles store selection dropdown (incomplete). |
-| `notebooks/meal_cost_optimizer.ipynb` | Cells 1–4: setup. Cell 5: markdown. Cell 6: main run (edit `USER_ADDRESS`, `DISH_NAME`). Cell 7: itemised cheapest store table. |
+| `notebooks/PaknSave_meal_cost_optimizer.ipynb` | Pak'nSave prototype. |
+| `notebooks/Woolworths_meal_cost_optimizer.ipynb` | Woolworths pipeline, utilizes `woolworths_optimizer.py`. |
 | `data/woolworths_all_stores.csv` | All Woolworths stores extracted from HTML elements. |
-| `data/woolworths_stores.csv` | Will be regenerated via HTML element selection for 5km filtering. |
+| `data/woolworths_stores.csv` | Regenerated via HTML element selection for 5km filtering. |
 | `requirements.md` | Pinned deps. Core: `cloudscraper`, `requests`, `pandas`, `numpy`, `beautifulsoup4`, `jupyterlab`. |
 
 ## Key Gotchas

@@ -59,3 +59,9 @@ Successfully linked store names (from dropdown choices API) with latitude/longit
 
 ## 15. Direct Store Selection via URL
 Chose to use `https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store)` to bypass complex dropdown navigation and directly trigger the store selection modal, enabling reliable automated store selection.
+
+## 16. Jupyter/Windows Async Workaround
+Use `subprocess.Popen` for scraping to bypass `NotImplementedError` in Jupyter's event loop (Windows Proactor policy conflict).
+
+## 17. Robust Pathing
+Use absolute path construction (`os.path.abspath`) with `__file__` or `os.getcwd()` for all file access, preventing `FileNotFoundError` in sub-scripts.

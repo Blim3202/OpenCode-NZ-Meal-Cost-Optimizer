@@ -80,9 +80,8 @@ opencode/
 
 ## Woolworths Research Status
 
-- Per-store pricing is now discoverable with store picker working. Needs to be implemented in full pipeline change store -> scrape -> change store to test persistency of cookies.
-- Store selection is automated via direct URL interaction (`/bookatimeslot/(hww-modal:change-pick-up-store)`).
-- Working tools: `scripts/woolworths/ChangeStore.py` and `scripts/woolworths/woolworths_scrape.py`.
+- Pipeline integration complete: Automated store selection, scraping, and price analysis integrated into `notebooks/Woolworths_meal_cost_optimizer.ipynb`.
+- Focus is now on verifying pipeline robustness, cookie persistence across store changes, and refining price scraping accuracy.
 
 ## NZ Scope
 

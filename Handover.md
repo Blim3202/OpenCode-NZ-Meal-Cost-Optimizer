@@ -49,7 +49,5 @@ The experimental path is **Playwright-headed scraping** rather than the previous
 - **Results Handling**: Data is saved to `data/latest_results.csv` by the scraper, which is subsequently ingested by the notebook's `analyze_results` function for formatted calculation and display.
 
 ## Next Steps
-1. Filter the merged Woolworths stores (woolworths_stores.csv) within a 5km radius.
-2. Integrate Playwright-based Woolworths store selection and scraping into the new `notebooks/Woolworths_meal_cost_optimizer.ipynb`.
-3. Verify that store selection persists and affects search results/scopes within the notebook.
-4. Integrate Playwright-based WoolworthsAPI into woolworths optimiszer notebook once processes validated.
+1. Verify cookie persistence during multi-store scraping in the pipeline.
+2. Refine price scraping accuracy and error handling for empty search results.

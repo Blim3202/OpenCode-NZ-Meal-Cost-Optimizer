@@ -3,7 +3,7 @@
 Find the cheapest Pak'nSave or Woolworths for a given dish by comparing ingredient prices across nearby stores in New Zealand.
 
 ## 🚀 Proof of Concept (PoC)
-Check out our Pak'nSave live dashboard: [NZ Meal Cost Optimizer Dashboard](https://nz-mealcost-optimizer-587140610895.asia-southeast1.run.app)
+Check out our Pak'nSave live dashboard on Google Cloud, built using Google AI Studio: [NZ Meal Cost Optimizer Dashboard](https://nz-mealcost-optimizer-587140610895.asia-southeast1.run.app)
 
 This dashboard is a **Proof of Concept** demonstrating:
 - **LLM Integration:** Semantic searching, retrieval, and smart filtering of products.

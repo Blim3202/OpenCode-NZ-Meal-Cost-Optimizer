@@ -4,7 +4,7 @@
 
 ```
 User input (address + dish)
-  → Nominatim geocode (lat/lon)
+  → Geocode address to lat/lon
   → Haversine filter (stores within 5 km)
   → Dish name → ingredient list (DISH_INGREDIENTS map)
   → Foodstuffs mobile API: search each ingredient at each nearby store
@@ -60,15 +60,20 @@ Base URL: `https://api-prod.prod.fsniwaikato.kiwi/prod`
 ### PAKnSAVE Store Data Sources
 
 1. **Mobile API** (`/mobile/store/physical`): 60 stores, precise coords, accurate names. Returns `{"stores": [...]}`.
-2. **CSV fallback** (`data/paknsave_stores.csv`): pre-built from `__NEXT_DATA__` + Nominatim geocoding. Same `store_id` UUIDs as API.
-3. **Slug mapping** (`data/paknsave_store_slugs.csv`): maps URL slugs to store GUIDs (from `__NEXT_DATA__` contentstackStores).
+2. **CSV fallback** (`data/paknsave_stores.csv`): pre-built from `/store-finder` page's `__NEXT_DATA__`. Same `store_id` UUIDs as API.
+3. **Build process** (`scripts/paknsave/fetch_stores.py`): single fetch of `/store-finder` extracts `contentstackStores` (GUIDs) and `store_finder.regionStoreGroupings` (names, addresses, coordinates) — joined on the shared `url` field.
 
-## Geocoding
+## Store Building Pipeline
 
-- **Provider**: Nominatim (OpenStreetMap) — free, no API key
-- **Rate limit**: 1 request/second
-- **Endpoint**: `https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1`
-- **User-Agent**: `NZMealCostOptimizer/1.0` (required by Nominatim ToS)
+```
+fetch_stores.py
+  → GET /store-finder → parse __NEXT_DATA__
+  → Extract contentstackStores: url → store_id (GUID) map
+  → Extract store_finder.regionStoreGroupings: title, address, lat/lon per store
+  → Join on url field → DataFrame → data/paknsave_stores.csv
+```
+
+No geocoding required — coordinates are provided directly by the page source.
 
 ## Store Distance
 

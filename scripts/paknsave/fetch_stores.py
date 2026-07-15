@@ -1,20 +1,23 @@
 import cloudscraper
 import json
 import re
-import time
-
+import os
+import sys
 import pandas as pd
-import requests
 
-DATA_DIR = "../data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+sys.stdout.reconfigure(encoding="utf-8") # Just in case we get special characters (Māngere, Pāpāmoa, Whakatāne, etc.)
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', 'data'))
+os.makedirs(DATA_DIR, exist_ok=True)
 
 scraper = cloudscraper.create_scraper()
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0"}
 
-# ── Step 1: Extract GUIDs from __NEXT_DATA__ ──────────────────────
-print("Fetching homepage __NEXT_DATA__...")
-r = scraper.get("https://www.paknsave.co.nz/", headers=headers)
+print("Fetching store-finder page __NEXT_DATA__...")
+r = scraper.get("https://www.paknsave.co.nz/store-finder", headers=headers)
+
+# All our data is stored in the __NEXT_DATA__ conveniently
 match = re.search(
     r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
     r.text,
@@ -25,146 +28,83 @@ if not match:
 
 data = json.loads(match.group(1))
 page_props = data["props"]["pageProps"]
+
+# ── Step 1: Build url → store_id map from contentstackStores ──────
 cs_stores = page_props.get("contentstackStores", [])
-
-slug_guid_map = {}
+url_to_store_id = {}
 for item in cs_stores:
-    uid = item.get("uid", "")
     url = item.get("url", "")
-    if url:
-        slug = url.rstrip("/").split("/")[-1]
-        slug_guid_map[slug] = uid
+    store_id = item.get("store_id", "")
+    if url and store_id:
+        url_to_store_id[url] = store_id
 
-print(f"Loaded {len(slug_guid_map)} GUIDs from __NEXT_DATA__")
-print(f"Slugs: {list(slug_guid_map.keys())[:5]}...")
+print(f"Loaded {len(url_to_store_id)} store_id mappings from contentstackStores")
 
-# ── Step 2: Get store names/addresses from store-finder page ──────
-print("\nFetching store-finder page...")
-r2 = scraper.get("https://www.paknsave.co.nz/store-finder", headers=headers)
-
-# Extract store data from the locations list script
-locations_match = re.search(
-    r'var locations\s*=\s*(\[.*?\]);',
-    r2.text,
-    re.DOTALL,
+# ── Step 2: Extract store details from store_finder.regionStoreGroupings ──
+page = page_props.get("page", {})
+content_blocks = page.get("page_content", {}).get("content_blocks", [])
+store_finder_block = next(
+    (b for b in content_blocks if "store_finder" in b),
+    {},
 )
+store_finder = store_finder_block.get("store_finder", {})
+region_groupings = store_finder.get("regionStoreGroupings", {})
+
 store_entries = []
-if locations_match:
-    locations = json.loads(locations_match.group(1))
-    for loc in locations:
-        name = loc.get("name", "").replace("PAK'nSAVE ", "")
-        address = loc.get("address", "")
-        parts = [p.strip() for p in address.split(",")]
-        street = parts[0] if len(parts) > 0 else ""
-        city = parts[-1] if len(parts) > 0 else street
-        region = ""
-        for part in parts:
-            if part in ("Auckland", "Hamilton", "Wellington", "Christchurch", "Tauranga", "Napier", "Dunedin", "Lower Hutt", "Porirua", "New Plymouth", "Invercargill"):
-                region = part
-                break
-        store_entries.append({
-            "name": name,
-            "address": address,
-            "street": street,
-            "city": city,
-            "region": region,
-        })
-else:
-    # Fallback: parse the HTML
-    items = re.findall(
-        r'<h3[^>]*>(.*?)</h3>.*?<p[^>]*>(.*?)</p>',
-        r2.text,
-        re.DOTALL,
-    )
-    for name, addr in items:
-        name = re.sub(r'<[^>]+>', "", name).replace("PAK'nSAVE ", "").strip()
-        addr = re.sub(r'<[^>]+>', "", addr).strip()
-        store_entries.append({
-            "name": name,
-            "address": addr,
-            "street": addr.split(",")[0].strip(),
-            "city": addr.split(",")[-1].strip(),
-            "region": "",
-        })
+for island_key, region_label in [("northIsland", "NI"), ("southIsland", "SI")]:
+    groups = region_groupings.get(island_key, [])
+    for group in groups:
+        stores = group.get("stores", [])
+        for store in stores:
+            title = store.get("title", "")
+            url = store.get("url", "")
+            address = store.get("address", "")
+            contact = store.get("contactDetails") or {}
+            latitude = contact.get("latitude")
+            longitude = contact.get("longitude")
 
-print(f"Found {len(store_entries)} stores from store-finder")
+            store_id = url_to_store_id.get(url, "")
 
-# ── Step 3: Match slugs to GUIDs ──────────────────────────────────
-# Build slug from store name
-def name_to_slug(name):
-    name_clean = re.sub(r"'s\b", "", name)
-    slug = name_clean.lower().strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    slug = slug.strip("-")
-    return slug
+            city = address.split(",")[0].strip() if address else ""
 
-for entry in store_entries:
-    slug = name_to_slug(entry["name"])
-    # Try different slug patterns
-    guess = slug
-    if guess not in slug_guid_map:
-        # Try with MINI prefix
-        guess_alt = f"mini-{slug}"
-        if guess_alt in slug_guid_map:
-            guess = guess_alt
-        elif slug.endswith("-city"):
-            guess = slug.replace("-city", "")
-        elif "henderson" in slug:
-            guess = "alderman-drive-henderson"
+            store_entries.append({
+                "store_id": store_id,
+                "name": title,
+                "address": address,
+                "city": city,
+                "region": region_label,
+                "latitude": latitude,
+                "longitude": longitude,
+            })
 
-    entry["store_id"] = slug_guid_map.get(guess, "")
+print(f"Found {len(store_entries)} stores from regionStoreGroupings")
 
-# ── Step 4: Geocode addresses ─────────────────────────────────────
-print(f"\nGeocoding stores with Nominatim...")
-geo_headers = {"User-Agent": "NZMealCostOptimizer/1.0 (research project)"}
-for i, entry in enumerate(store_entries, 1):
-    name = entry["name"]
-    address = entry["address"]
-    print(f"  [{i}/{len(store_entries)}] {name}: ", end="")
-
-    params = {"q": address, "format": "json", "limit": 1}
-    resp = scraper.get(
-        "https://nominatim.openstreetmap.org/search",
-        headers=geo_headers,
-        params=params,
-    )
-    if resp.status_code == 200 and resp.json():
-        loc = resp.json()[0]
-        entry["latitude"] = float(loc["lat"])
-        entry["longitude"] = float(loc["lon"])
-        print(f"{entry['latitude']}, {entry['longitude']}")
-    else:
-        # Fallback: try Pak'nSave {name}
-        alt_q = f"Pak'nSave {name}, New Zealand"
-        params["q"] = alt_q
-        resp2 = scraper.get(
-            "https://nominatim.openstreetmap.org/search",
-            headers=geo_headers,
-            params=params,
-        )
-        if resp2.status_code == 200 and resp2.json():
-            loc = resp2.json()[0]
-            entry["latitude"] = float(loc["lat"])
-            entry["longitude"] = float(loc["lon"])
-            print(f"{entry['latitude']}, {entry['longitude']} (alt)")
-        else:
-            entry["latitude"] = None
-            entry["longitude"] = None
-            print("None, None")
-
-    time.sleep(1.1)
-
-# ── Step 5: Save to CSV ───────────────────────────────────────────
+# ── Step 3: Save to CSV ───────────────────────────────────────────
 df = pd.DataFrame(store_entries)
 df = df[["store_id", "name", "address", "city", "region", "latitude", "longitude"]]
-df.columns = ["store_id", "name", "address", "city", "region", "latitude", "longitude"]
-df.to_csv(f"{DATA_DIR}/paknsave_stores.csv", index=False)
+output_path = os.path.join(DATA_DIR, "paknsave_stores.csv")
+df.to_csv(output_path, index=False)
 
-print(f"\nSaved {len(df)} stores to {DATA_DIR}/paknsave_stores.csv")
+print(f"\nSaved {len(df)} stores to {output_path}")
 print(f"Stores with coords: {df['latitude'].notna().sum()} / {len(df)}")
 
-# Print table
 pd.set_option("display.max_columns", 10)
 pd.set_option("display.width", 120)
 pd.set_option("display.max_colwidth", 30)
 print(df[["name", "address", "latitude", "longitude"]].to_string(index=False))
+
+# Removed:
+# - Separate store-finder HTML page fetch (r2)
+# - Regex parsing of var locations JS array
+# - HTML fallback parsing
+# - Nominatim geocoding (entire Step 4 + requests + time imports)
+# - Raw JSON debug print
+# Kept:
+# - contentstackStores extraction for GUID → URL mapping (now from the same page)
+# Added:
+# - Fetches /store-finder page instead of homepage (both contentstackStores and store_finder live in the same __NEXT_DATA__)
+# - Navigation path: page.page_content.content_blocks[2].store_finder.regionStoreGroupings
+# - Extracts title, url, address, contactDetails (lat/lon) directly — no geocoding needed
+# - city derived from the URL path's second-to-last segment (e.g., /upper-north-island/auckland/albany → Auckland)
+# - region set to NI or SI based on the island grouping key
+# - sys.stdout.reconfigure(encoding="utf-8") for proper Unicode handling of macron characters (Māngere, Pāpāmoa, Whakatāne, etc.)

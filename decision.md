@@ -31,13 +31,17 @@ Product search returns results sorted by relevance. Taking the cheapest would re
 
 Auckland CBD has only 1 Pak'nSave within 5 km. East Auckland (Botany/Manukau) has 3. The 5 km default balances convenience with store coverage. Adjustable via `MAX_DISTANCE_KM`.
 
-## 8. Store GUIDs from __NEXT_DATA__
+## 8. Store data from __NEXT_DATA__ (single fetch)
 
-Store GUIDs are extracted from the `contentstackStores` array in the homepage's `__NEXT_DATA__` script tag. This gives all 60 stores with their Contentstack UIDs, which map to the API's `store_id` values.
+All store data is now obtained from a single fetch of the `/store-finder` page's `__NEXT_DATA__`:
+- **`contentstackStores`**: maps URL paths to store GUIDs (60 stores)
+- **`store_finder.regionStoreGroupings`**: provides store name, address, and latitude/longitude
 
-## 9. Nominatim for geocoding
+The two datasets are joined on the shared `url` field. This eliminated the need for both the separate homepage fetch and the Nominatim geocoding step.
 
-Free, no API key needed, sufficient accuracy for NZ addresses. Rate limit of 1 req/sec is acceptable for a prototype. Could be swapped for Google Geocoding if higher accuracy or speed is needed.
+## 9. Nominatim for geocoding (retired)
+
+Geocoding is no longer needed — the `/store-finder` page's `__NEXT_DATA__` includes latitude/longitude directly from the `contactDetails` field, with higher precision than Nominatim returns. The Nominatim rate limit (1 req/sec), dedicated `User-Agent`, and `time.sleep` delay were all removed.
 
 ## 10. Jupyter notebook as primary interface
 

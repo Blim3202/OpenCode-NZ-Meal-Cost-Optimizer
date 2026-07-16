@@ -31,7 +31,7 @@ Product search returns results sorted by relevance. Taking the cheapest would re
 
 Auckland CBD has only 1 Pak'nSave within 5 km. East Auckland (Botany/Manukau) has 3. The 5 km default balances convenience with store coverage. Adjustable via `MAX_DISTANCE_KM`.
 
-## 8. Store data from __NEXT_DATA__ (single fetch)
+## 8. Pak'nSave Store data from __NEXT_DATA__ (single fetch)
 
 All store data is now obtained from a single fetch of the `/store-finder` page's `__NEXT_DATA__`:
 - **`contentstackStores`**: maps URL paths to store GUIDs (60 stores)
@@ -39,7 +39,7 @@ All store data is now obtained from a single fetch of the `/store-finder` page's
 
 The two datasets are joined on the shared `url` field. This eliminated the need for both the separate homepage fetch and the Nominatim geocoding step.
 
-## 9. Nominatim for geocoding (retired)
+## 9. Nominatim for Pak'nSave Store geocoding (retired)
 
 Geocoding is no longer needed — the `/store-finder` page's `__NEXT_DATA__` includes latitude/longitude directly from the `contactDetails` field, with higher precision than Nominatim returns. The Nominatim rate limit (1 req/sec), dedicated `User-Agent`, and `time.sleep` delay were all removed.
 
@@ -48,14 +48,16 @@ Geocoding is no longer needed — the `/store-finder` page's `__NEXT_DATA__` inc
 Chosen for easy experimentation — user can edit inputs and re-run cells without touching the terminal. CLI (`prototype.py`) available as alternative.
 
 ## 11. API-based Woolworths store discovery
-Woolworths store locations are identified via a discovered JSON API (`https://api.cdx.nz/site-location/api/v1/sites`). This replaces manual HTML inspection and provides complete, structured, and filterable store data.
+Woolworths store locations are manually identified via a discovered JSON API (`https://api.cdx.nz/site-location/api/v1/sites`). This replaces manual HTML inspection and provides complete, structured, and filterable store data.
 
 ## 12. Automated store discovery
-Store locations are now fetched and converted to CSV automatically using `scripts/woolworths/Extract_woolworths_API_JSON.py`. This approach provides complete coverage and allows for automated filtering based on distance.
+Store locations are now fetched and converted to CSV automatically using `scripts/woolworths/Get_woolworths_store_API_data.py`. This approach provides complete coverage and allows for automated filtering based on distance.
 
 ## 13. Playwright headed scraping over direct API for Woolworths
 
 Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown.
+
+**Update: ** The `target=search` endpoint **does** work without authentication — the `400` was caused by a missing `x-requested-with: ??` header, not by missing session context. A single `GET /` seeds cookies, and the API can be called with `requests.Session`. This makes the Playwright scraping layer redundant for product price retrieval. See `Woolworths_API.md` for full documentation.
 
 ## 14. Joined Woolworths store datasets via common ID
 
@@ -69,3 +71,11 @@ Use `subprocess.Popen` for scraping to bypass `NotImplementedError` in Jupyter's
 
 ## 17. Robust Pathing
 Use absolute path construction (`os.path.abspath`) with `__file__` or `os.getcwd()` for all file access, preventing `FileNotFoundError` in sub-scripts.
+
+## 18. Woolworths API `x-requested-with: ??` header
+
+The `GET /api/v1/products?target=search` endpoint requires the literal header `x-requested-with: ??` (or any non-empty string including `XMLHttpRequest`). Without this header, all API calls return HTTP 400. Discovered via black-box probing of the `/api/v1` surface + existing github repositories. This header was the sole blocker that previously made the API appear unusable.
+
+## 19. Woolworths global pricing — single price search per ingredient
+
+`fulfilmentStoreId` and `pickupStoreId` query parameters on `/api/v1/products` are accepted (HTTP 200) but **do not change prices**. Woolworths NZ uses a single price list across all stores. Per-store pricing differences (if any) are applied at the checkout / fulfilment layer, not at product-search time. This means the optimizer only needs one price search per ingredient across all nearby stores — the same ingredient will have the same catalogue price regardless of which store context is active. Further research needed to check if per store pricing can be found by manipulating cookies.

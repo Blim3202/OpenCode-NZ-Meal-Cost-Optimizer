@@ -52,9 +52,9 @@
 
 **Symptom**: Calling `GET /api/v1/products?target=search&search=milk&inStockProductsOnly=false&size=24` from both outside the browser and via Playwright's `page.request` returns HTTP 400 with `{"message":"One or more errors occurred","errors":[{"field":"Header","message":"Header is missing or is invalid."}]}`.
 
-**Cause**: The `target=search` endpoint requires a session/header context established by prior authenticated or scoped requests that Playwright's direct request does not provide.
+**Cause**: The endpoint requires a non-empty `x-requested-with` header (any string, including `??` or `XMLHttpRequest`). The original testing omitted this header entirely, causing the 400. A single `GET /` to seed cookies is also sufficient — no Playwright session or authenticated state is needed.
 
-**Resolution**: Abandoned direct REST pathway for search. Site uses client-side Angular rendering (`product-stamp-grid`) and search results appear under `/shop/searchproducts?search=...` without login. Pivoted to Playwright headed scraping from the rendered page, reading Angular shadow DOM instead of JSON API.
+**Resolution**: The API is fully functional with `requests.Session` when the `x-requested-with: ??` header is included. Full endpoint documentation in `Woolworths_API.md`. The Playwright scraping layer remains useful only for store-context switching (which requires browser cookies), not for product search.
 
 ## 8. Headless Playwright blocked on Woolworths (`ERR_HTTP2_PROTOCOL_ERROR`)
 
@@ -103,3 +103,19 @@
 ## 14. `FileNotFoundError` in Sub-modules
 **Symptom**: `data/woolworths_stores.csv` wasn't found when running scripts via `subprocess` because the script CWD was different from the notebook CWD.
 **Resolution**: Implemented robust absolute path construction in `woolworths_optimizer.py` using `os.path.abspath(os.path.dirname(__file__))`.
+
+## 15. Woolworths API Exploration — Full `/api/v1` Surface Discovery
+
+**Symptom**: Needed to determine if the Woolworths JSON API (`/api/v1/products`) could replace the Playwright DOM scraping layer for product price retrieval.
+
+**Cause**: Previous testing (log #7) had concluded the API was unusable, but had not tested with the correct header or with a seeded session.
+
+**Resolution**: Built `scripts/woolworths/explore_woolworths_api.py` and performed systematic black-box probing of the `/api/v1` surface. Key findings:
+- `GET /api/v1/products?target=search` returns real product data with prices, just by seeding cookies with a single `GET /` — no login or Playwright required.
+- `GET /api/v1/shell` returns the full navigation taxonomy and `context.fulfilment` object (default store: `fulfilmentStoreId: 9171`).
+- `GET /api/v1/addresses/pickup-addresses` returns all pickup stores (only `id`, `name`, `address` keys — no bridge to lat/lon).
+- `target=browse` with `dasFilter=Department;;<slug>;false` works for department-level filtering (14 departments, 100+ aisles mapped).
+- Aisle-level `dasFilter` chaining is accepted but does not seem to narrow results.
+- `fulfilmentStoreId`, `pickupStoreId`, and 9 other store-context parameters all return HTTP 200 but **do not change prices** — pricing is global to current knowledge.
+- 19 POST store-switch endpoints all return 404 — no API path exists for programmatic store context changes.
+- Full documentation written to `Woolworths_API.md`.

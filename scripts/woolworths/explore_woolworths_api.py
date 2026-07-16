@@ -10,7 +10,7 @@ session.headers.update({
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-NZ,en;q=0.9",
-    "x-requested-with": "??",
+    "x-requested-with": "XMLHttpRequest", # Standard placeholder, any non-blank string seems to work
 })
 session.get(BASE, timeout=10)
 

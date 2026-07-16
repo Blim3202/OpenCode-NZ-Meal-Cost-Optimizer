@@ -210,7 +210,7 @@ No other shopper fields were present in the unauthenticated response.
 
 **Critical distinction:** `fulfilmentStoreId: 9171` is a *delivery-area* store ID (for
 courier fulfilment). It does **not** appear in the pickup-addresses store list (tested
-by scanning 20+ store IDs — `9171` is absent). It is not a physical store you can visit.
+by scanning 20+ store IDs — `9171` is absent). This ID belongs to the store's delivery ID.
 
 #### 5.1.4 `mainNavs` structure
 

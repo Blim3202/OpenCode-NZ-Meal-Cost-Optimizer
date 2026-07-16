@@ -79,9 +79,7 @@ Accept:            application/json, text/plain, */*
 Accept-Language:   en-NZ,en;q=0.9
 ```
 
-The `x-requested-with: ??` header value was discovered empirically — both the literal
-string `"??"` and `"XMLHttpRequest"` return HTTP 200; an empty string or absent header
-returns HTTP 400.
+The `x-requested-with: ??` header value was discovered through existing github repos (https://github.com/neon-ninja/woolies). Both the literal string `"??"` and `"XMLHttpRequest"` return HTTP 200; an empty string or absent header returns HTTP 400. Any other non empty string appears to be accepted. 
 
 ---
 

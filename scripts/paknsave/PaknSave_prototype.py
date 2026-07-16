@@ -2,9 +2,13 @@ import cloudscraper
 import pandas as pd
 import requests
 import math
+import os
 
-DATA_DIR = "../data"
-stores_csv = pd.read_csv(f"{DATA_DIR}/paknsave_stores.csv")
+# Get the directory of the current script
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Construct absolute path to the data folder
+DATA_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', 'data'))
+stores_csv = pd.read_csv(os.path.join(DATA_DIR, "paknsave_stores.csv"))
 
 BASE = "https://api-prod.prod.fsniwaikato.kiwi/prod"
 
@@ -129,7 +133,7 @@ if __name__ == "__main__":
     import sys
     USER_ADDRESS = sys.argv[1] if len(sys.argv) > 1 else "123 Queen Street, Auckland CBD, 1010"
     DISH_NAME = sys.argv[2] if len(sys.argv) > 2 else "spaghetti bolognese"
-    MAX_DISTANCE_KM = 5
+    MAX_DISTANCE_KM = 10
 
     user_lat, user_lon = geocode(USER_ADDRESS)
     if user_lat is None:

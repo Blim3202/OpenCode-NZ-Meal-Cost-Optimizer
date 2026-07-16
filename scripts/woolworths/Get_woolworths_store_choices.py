@@ -4,6 +4,10 @@ import csv
 import os
 import sys
 
+# This API endpoint was manually discovered (by me) by inspecting network sources on webpage refreshes-
+# while on the https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store) webpage and clicking store dropdown.
+# It provides a JSON output of Woolworths (formerly Countdown) store names and IDs. Stores with pickup.
+
 def main():
     # Config
     WOOLWORTHS_API_BASE_URL = "https://www.woolworths.co.nz/api/v1/addresses/pickup-addresses"

@@ -3,9 +3,9 @@ import json
 import os
 import csv
 
-# This API endpoint was manually discovered by inspecting network sources on webpage refreshes-
+# This API endpoint was manually discovered (by me) by inspecting network sources on webpage refreshes-
 # while on the https://www.woolworths.co.nz/store-finder/search webpage.
-# It provides a JSON output of Woolworths (formerly Countdown) store locations.
+# It provides a JSON output of Woolworths (formerly Countdown) store data (lat long, region id, store id, store name, address, etc). All stores.
 
 def clean_null(value):
     """Clean null or empty values to return a default string."""

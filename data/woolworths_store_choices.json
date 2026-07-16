@@ -2054,7 +2054,6 @@
       "EnableMyFavouritesPastOrdersProductCarousel",
       "EnableEdrAves",
       "EnableEdrRewardMessages",
-      "EnableWPay",
       "RedirectValidation",
       "PasClearanceTag",
       "HideSpecialTag",
@@ -2087,7 +2086,8 @@
       "EnableLiquorGmcWarning",
       "EnableSpecialsChangeForMultibuy",
       "EnablePricingComplaintForm",
-      "EnableHideWasAndSavePrice"
+      "EnableHideWasAndSavePrice",
+      "EnableWPay"
     ],
     "shoppingListItems": [],
     "basketTotals": null,

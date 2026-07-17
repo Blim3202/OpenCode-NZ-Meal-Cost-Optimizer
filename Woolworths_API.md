@@ -887,7 +887,7 @@ both correctly set the shell context.
   (e.g., 764300 for Greymouth)
 - **fulfilmentStoreId**: an internal ID used by the cookie (e.g., 9009 for Greymouth)
 - These are DIFFERENT numbers with no formulaic relationship
-- fulfilmentStoreId is NOT available from any API endpoint
+- fulfilmentStoreId is NOT available as is from any known API endpoint
 
 #### Where fulfilmentStoreId IS available: woolworths_store_data.json
 
@@ -1080,7 +1080,7 @@ def set_store_context(session, pickup_address_id):
     session.cookies.set('cw-lrkswrdjp', cookie_val,
                         domain='www.woolworths.co.nz', path='/')
 
-    # Validate via shell
+    # Validate via shell endpoint - Check if not Glenfield default
     resp = session.get('https://www.woolworths.co.nz/api/v1/shell', timeout=15)
     fulf = resp.json().get('context', {}).get('fulfilment', {})
     if fulf.get('fulfilmentStoreId') == 9171:
@@ -1208,10 +1208,10 @@ Strategy:
 
 | Script | Phase | Purpose |
 |--------|-------|---------|
-| explore_woolworths_api.py | Original | Black-box API probing, endpoint enumeration, dasFilter taxonomy |
-| explore_woolworths_api_part2.py | Phase 1 | URL-param seeding test, Playwright cookie capture/injection, cookie diff, session_state/RT isolation |
-| explore_woolworths_api_part3.py | Phase 2 | /api/v1/shell validation, fulfilmentStoreId query param test, cw-lrkswrdjp deep-dive (3b: cookie-only injection, 3c: minimal cookie) |
-| explore_woolworths_api_part4.py | Phase 3 | Programmatic cookie construction, mapping capture, price validation (21/21 products), constructed vs full jar comparison |
+| explore_woolworths_api_part1.py | Phase 1 | Black-box API probing, endpoint enumeration, dasFilter taxonomy |
+| explore_woolworths_api_part2.py | Phase 2 | URL-param seeding test, Playwright cookie capture/injection, cookie diff, session_state/RT isolation |
+| explore_woolworths_api_part3.py | Phase 3 | /api/v1/shell validation, fulfilmentStoreId query param test, cw-lrkswrdjp deep-dive (3b: cookie-only injection, 3c: minimal cookie) |
+| explore_woolworths_api_part4.py | Phase 4 | Programmatic cookie construction, mapping capture, price validation (21/21 products), constructed vs full jar comparison |
 
 ---
 
@@ -1223,10 +1223,10 @@ Strategy:
 | exploration_plan.md | Detailed findings and implementation checklist |
 | compaction.md | Session-by-session progress record |
 | AGENTS.md | Project overview and file structure |
-| scripts/woolworths/explore_woolworths_api.py | Original API exploration |
-| scripts/woolworths/explore_woolworths_api_part2.py | Phase 1: cookie injection |
-| scripts/woolworths/explore_woolworths_api_part3.py | Phase 2: shell validation, cw-lrkswrdjp |
-| scripts/woolworths/explore_woolworths_api_part4.py | Phase 3: programmatic construction |
+| scripts/woolworths/explore_woolworths_api_part1.py | Original API exploration |
+| scripts/woolworths/explore_woolworths_api_part2.py | Phase 2: cookie injection |
+| scripts/woolworths/explore_woolworths_api_part3.py | Phase 3: shell validation, cw-lrkswrdjp |
+| scripts/woolworths/explore_woolworths_api_part4.py | Phase 4: programmatic construction |
 | scripts/woolworths/Get_woolworths_store_choices.py | Fetches pickup store list from API |
 | scripts/woolworths/Get_woolworths_store_API_data.py | Fetches store details (extra1/extra2) from CDX API |
 | scripts/woolworths/Merge_woolworths_stores.py | Merges store choices and location data |

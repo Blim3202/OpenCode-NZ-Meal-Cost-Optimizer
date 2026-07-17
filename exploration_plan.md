@@ -114,6 +114,7 @@ Injecting Playwright-captured cookies and calling `/api/v1/shell` returns the co
 |-------|-------------------|-----------------|--------|---------|
 | Greymouth | 9009 | 764300 | Pickup | Woolworths Greymouth |
 | Glenfield | 9443 | 1190273 | Pickup | Woolworths Glenfield |
+| Birkenhead | 9101 | 2124460 | Pickup | Woolworths Birkenhead |
 | BASELINE (no cookies) | 9171 | 0 | Courier | Glenfield |
 
 This means `/api/v1/shell` can be used as a **diagnostic check**: if `fulfilmentStoreId == 9171`, cookies have expired or were not injected correctly. No need to compare product prices to detect expiry.
@@ -129,18 +130,84 @@ This single cookie controls the entire store context. Its format:
 ```
 dm-Pickup,f-9009,a-224,s-38    (Greymouth)
 dm-Pickup,f-9443,a-440,s-38    (Glenfield)
+dm-Pickup,f-9101,a-720,s-38    (Birkenhead)
 ```
 
-| Field | Meaning | Greymouth | Glenfield |
-|-------|---------|-----------|-----------|
-| `dm` | Delivery method | Pickup | Pickup |
-| `f`  | fulfilmentStoreId | 9009 | 9443 |
-| `a`  | areaId | 224 | 440 |
-| `s`  | Site/segment (constant) | 38 | 38 |
+| Field | Meaning | Greymouth | Glenfield | Birkenhead |
+|-------|---------|-----------|-----------|------------|
+| `dm` | Delivery method | Pickup | Pickup | Pickup |
+| `f`  | fulfilmentStoreId | 9009 | 9443 | 9101 |
+| `a`  | areaId (internal) | 224 | 440 | 720 |
+| `s`  | Site/segment (constant) | 38 | 38 | 38 |
 
 - **Injecting ONLY cw-lrkswrdjp** (no session_state, no other Playwright cookies) correctly sets the shell context to the right store.
 - **session_state is NOT required** for context -- the full jar is NOT needed.
+- **a- and s- fields are optional** -- cookie works with just `dm-Pickup,f-{fulfilmentStoreId}`
 - BASELINE has no cw-lrkswrdjp cookie (absent when no store is selected).
+
+### Finding 10: fulfilmentStoreId is NOT available from the API
+
+The `fulfilmentStoreId` and `areaId` are internal IDs not exposed by any API endpoint:
+- `/api/v1/addresses/pickup-addresses` returns only `id`, `name`, `address` per store
+- The `id` field is the `pickupAddressId` (e.g., 764300), NOT the `fulfilmentStoreId` (e.g., 9009)
+- No POST endpoint or query param can retrieve the mapping
+- The `a-` area ID (e.g., 224) does NOT match any area from the `pickup-addresses` response
+
+**Implication:** We must capture the mapping once via Playwright, then save it to disk.
+
+---
+
+## PHASE 3 FINDINGS -- Programmatic Cookie Construction (CONFIRMED)
+
+### Finding 11: Constructed cookies work for shell context (3/3 stores)
+
+Building `cw-lrkswrdjp` from known `fulfilmentStoreId` and `areaId` and injecting it into `requests.Session` correctly sets `/api/v1/shell` context for all tested stores:
+
+| Store | Constructed cookie | Shell fulfilmentStoreId | Shell pickupAddressId | Status |
+|-------|-------------------|------------------------|----------------------|--------|
+| Greymouth | dm-Pickup,f-9009,a-224,s-38 | 9009 | 764300 | OK |
+| Glenfield | dm-Pickup,f-9443,a-440,s-38 | 9443 | 1190273 | OK |
+| Birkenhead | dm-Pickup,f-9101,a-720,s-38 | 9101 | 2124460 | OK |
+
+### Finding 12: Constructed cookies produce per-store PRICING (21/21 products)
+
+The critical confirmation: injecting a programmatically constructed `cw-lrkswrdjp` cookie into `requests.Session` causes `/api/v1/products` to return **correct per-store prices**.
+
+Tested with 21 common milk SKUs between Greymouth and Glenfield -- ALL 21 show price differences:
+
+| SKU | Product | Greymouth | Glenfield | Diff |
+|-----|---------|-----------|-----------|------|
+| 282768 | Woolworths Milk Standard 3L | $7.15 | $7.33 | +$0.18 |
+| 282765 | Woolworths Milk Standard 1L | $4.95 | $4.91 | -$0.04 |
+| 282793 | Meadow Fresh Milk Standard | $6.09 | $6.17 | +$0.08 |
+| 701971 | Meadow Fresh Milk Standard | $9.09 | $9.16 | +$0.07 |
+| 705692 | Anchor Milk Standard Blue | $9.07 | $8.92 | -$0.15 |
+| ... | (16 more products) | ... | ... | ... |
+
+**All 21 products have price differences -- per-store pricing confirmed via programmatic cookies.**
+
+### Finding 13: No Playwright needed for price queries
+
+The complete flow without Playwright:
+1. Look up `fulfilmentStoreId` and `areaId` from `data/store_id_mapping.json`
+2. Construct cookie: `dm-Pickup,f-{fulfilmentStoreId},a-{areaId},s-38`
+3. Inject into `requests.Session`
+4. Call `/api/v1/shell` to verify context (check `fulfilmentStoreId != 9171`)
+5. Call `/api/v1/products` for pricing
+
+Playwright is only needed **once** to capture the mapping for each store.
+
+### Finding 14: Mapping table captured for 3 stores
+
+Saved to `data/store_id_mapping.json`:
+
+| pickupAddressId | fulfilmentStoreId | areaId | Store Name |
+|-----------------|-------------------|--------|------------|
+| 764300 | 9009 | 224 | Woolworths Greymouth |
+| 1190273 | 9443 | 440 | Woolworths Glenfield |
+| 2124460 | 9101 | 720 | Woolworths Birkenhead |
+
+To expand to all 171 stores: run Playwright capture for each, extract cw-lrkswrdjp, parse fields, save to mapping.
 
 ### Implication: No Playwright needed for price queries
 
@@ -240,30 +307,24 @@ With a stored cookie jar and `requests.Session`, no browser is required for pric
 | fulfilmentStoreId as query param | [FAIL] No effect | Still returns default 9171 |
 | cw-lrkswrdjp + session_state only | [OK] Correct store shown | Only 2 cookies needed for context |
 | cw-lrkswrdjp ONLY | [OK] Correct store shown | 1 cookie controls entire store context |
-| Programmatic cw-lrkswrdjp construction | [PENDING] Not yet tested | Need to verify prices also change |
+| **Programmatic cw-lrkswrdjp construction** | **[OK] Per-store pricing** | **21/21 products show price differences** |
+| **Constructed cookie vs full jar** | **[OK] Equivalent** | **Same prices, no Playwright needed** |
 
 ---
 
 ## Implementation Checklist
 
-### Phase 2 (immediate)
-- [ ] Test programmatic cw-lrkswrdjp construction: `dm-Pickup,f-{fulfilmentStoreId},a-{areaId},s-38` -- verify prices change
-- [ ] Confirm `s-38` is constant across all NZ Woolworths stores (test 3+ stores)
-- [ ] Confirm `dm-Pickup` is always `Pickup` for pickup stores
+### Phase 3 (complete)
+- [x] Test programmatic cw-lrkswrdjp construction -- verified per-store pricing (21/21 products)
+- [x] Confirm s-38 is constant across stores (Greymouth, Glenfield, Birkenhead all use 38)
+- [x] Capture mapping for 3 stores: Greymouth, Glenfield, Birkenhead
+- [x] Save mapping to `data/store_id_mapping.json`
 
-### Phase 3 (if programmatic construction works)
-- [ ] Build `build_cw_lrkswrdjp_cookie(fulfilment_store_id, area_id)` helper
-- [ ] Build `set_store_context(session, fulfilment_store_id, area_id)` -- inject cw-lrkswrdjp, verify via /api/v1/shell
-- [ ] Add shell context validation: call /api/v1/shell after cookie injection, check fulfilmentStoreId matches expected
-
-### Phase 3 (fallback if programmatic fails)
-- [ ] Build `capture_cw_lrkswrdjp(store_name, store_id)` -- Playwright captures just this 1 cookie
-- [ ] Build `save_cookies_to_disk(store_id, jar)` -- persist to `data/woolworths_cookies/<store_id>.json`
-- [ ] Build `load_and_inject_cookies(session, store_id)` -- load from disk, inject into session
-- [ ] Build `is_jar_valid(jar)` -- check expiry via /api/v1/shell fulfilmentStoreId check
-
-### General
-- [ ] Add expiration refresh logic to optimizer (check shell context on each query)
+### Phase 4 (next)
+- [ ] Bulk capture mapping for all 171 Woolworths stores via Playwright
+- [ ] Build `set_store_context(session, fulfilment_store_id, area_id)` helper
+- [ ] Add shell context validation: call /api/v1/shell after cookie injection, check fulfilmentStoreId
+- [ ] Integrate cw-lrkswrdjp injection into woolworths_optimizer.py
 - [ ] Expand DISH_INGREDIENTS in woolworths_optimizer.py to 21 dishes
 - [ ] Fix hardcoded values in woolworths_optimizer.py (lines 175, 196)
 
@@ -273,7 +334,9 @@ With a stored cookie jar and `requests.Session`, no browser is required for pric
 
 - `scripts/woolworths/explore_woolworths_api_part2.py` -- Phase 1 exploration (URL seeding, full cookie injection)
 - `scripts/woolworths/explore_woolworths_api_part3.py` -- Phase 2 exploration (shell validation, cw-lrkswrdjp deep-dive)
+- `scripts/woolworths/explore_woolworths_api_part4.py` -- Phase 3 exploration (programmatic cookie construction, price validation)
 - `scripts/woolworths/ChangeStore.py` -- Playwright store-selection (reference for cookie capture)
-- `scripts/woolworths/explore_woolworths_api.py` -- Original API exploration
+- `data/store_id_mapping.json` -- pickupAddressId -> fulfilmentStoreId/areaId mapping (3 stores captured)
 - `data/part2_cookies.json` -- Saved Greymouth/Glenfield cookie jars for reference
-- `data/woolworths_store_choices.csv` -- Store ID -> name mapping
+- `data/woolworths_store_choices.csv` -- Store ID -> name mapping (171 stores)
+- `data/woolworths_stores.csv` -- Store locations with lat/lon

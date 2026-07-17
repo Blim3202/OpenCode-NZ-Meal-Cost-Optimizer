@@ -1,0 +1,20 @@
+{
+  "764300": {
+    "fulfilmentStoreId": 9009,
+    "areaId": 224,
+    "cw_lrkswrdjp": "dm-Pickup,f-9009,a-224,s-38",
+    "name": "Woolworths Greymouth"
+  },
+  "1190273": {
+    "fulfilmentStoreId": 9443,
+    "areaId": 440,
+    "cw_lrkswrdjp": "dm-Pickup,f-9443,a-440,s-38",
+    "name": "Woolworths Glenfield"
+  },
+  "2124460": {
+    "fulfilmentStoreId": 9101,
+    "areaId": 720,
+    "cw_lrkswrdjp": "dm-Pickup,f-9101,a-720,s-38",
+    "name": "Woolworths Birkenhead"
+  }
+}

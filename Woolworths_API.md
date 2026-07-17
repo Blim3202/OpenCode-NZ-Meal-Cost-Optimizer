@@ -71,7 +71,7 @@ Every call to `/api/v1` must include at minimum these headers. Omitting
 "message":"Header is missing and is invalid."}]}`.
 
 ```
-x-requested-with:  ??           ← literal string, not a placeholder
+x-requested-with:  ??           <- literal string, not a placeholder
 User-Agent:        Mozilla/5.0 (Windows NT 10.0; Win64; x64)
                     AppleWebKit/537.36 (KHTML, like Gecko)
                     Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0
@@ -79,7 +79,7 @@ Accept:            application/json, text/plain, */*
 Accept-Language:   en-NZ,en;q=0.9
 ```
 
-The `x-requested-with: ??` header value was discovered through existing github repos (https://github.com/neon-ninja/woolies). Both the literal string `"??"` and `"XMLHttpRequest"` return HTTP 200; an empty string or absent header returns HTTP 400. Any other non empty string appears to be accepted. 
+The `x-requested-with: ??` header value was discovered through existing github repos (https://github.com/neon-ninja/woolies). Both the literal string `"??"` and `"XMLHttpRequest"` return HTTP 200; an empty string or absent header returns HTTP 400. Any other non empty string appears to be accepted.
 
 ---
 
@@ -223,11 +223,11 @@ Observed top-level `mainNavs` map:
 | Index | Label | Items (first 3) |
 |-------|-------|-----------------|
 | 0 | *(unnamed)* | *no items present* |
-| 1 | **Browse** | Fruit & Veg, Meat & Poultry, Fish & Seafood … |
-| 2 | **Specials & offers** | Specials & offers, Member Price, Boosts … |
-| 3 | **Favourites & lists** | Favourites, Past orders, Saved lists … |
+| 1 | **Browse** | Fruit & Veg, Meat & Poultry, Fish & Seafood ... |
+| 2 | **Specials & offers** | Specials & offers, Member Price, Boosts ... |
+| 3 | **Favourites & lists** | Favourites, Past orders, Saved lists ... |
 | 4 | **Recipes** | *no items present* |
-| 5 | **Disney OOSHIES™** | *no items present* |
+| 5 | **Disney OOSHIES(TM)** | *no items present* |
 
 Each Browse item has keys: `id`, `label`, `url` (e.g. `/shop/browse/meat-poultry`),
 `dasFacets` (one element describing this department), `promoTiles`.
@@ -268,8 +268,8 @@ The primary product catalogue endpoint. Accepts a large set of query parameters.
 |-----------|----------|---------------|---------|-------------|
 | `target` | Yes (mode) | `"search"` or `"browse"` | — | Switches between keyword search and full catalogue browse |
 | `search` | Yes if target=search | `string` | — | Free-text product query |
-| `dasFilter` | Yes for aisle/department filtering | `string` (see §6) | — | Hierarchical facet filter; only valid with `target=browse` |
-| `size` | No | `int` (1–120 tested; 120 unconfirmed) | `24` | Results per page |
+| `dasFilter` | Yes for aisle/department filtering | `string` (see section 6) | — | Hierarchical facet filter; only valid with `target=browse` |
+| `size` | No | `int` (1-120 tested; 120 unconfirmed) | `24` | Results per page |
 | `page` | No | `int` (1-indexed) | `1` | Page number |
 | `sort` | No (browse) | `PriceAsc`, `PriceDesc`, `CUPAsc`, `BrowseRelevance` | `BrowseRelevance` | Sort order |
 | `inStockProductsOnly` | No | `"false"` or `"true"` | `"false"` | Exclude out-of-stock items |
@@ -326,7 +326,7 @@ The primary product catalogue endpoint. Accepts a large set of query parameters.
 |-------|------|---------|
 | `price.salePrice` | `float` | **Current selling price — use this for comparisons** |
 | `price.originalPrice` | `float` | Price before any discount |
-| `price.savePrice` | `float` | `originalPrice − salePrice` |
+| `price.savePrice` | `float` | `originalPrice - salePrice` |
 | `price.savePercentage` | `float` | Discount percentage |
 | `price.isSpecial` | `bool` | `true` if on special (not club price) |
 | `price.isClubPrice` | `bool` | `true` if member/club exclusive price |
@@ -346,14 +346,14 @@ top level. Each element:
 
 ```json
 {
-  "key":              "Aisle",       // facet type: "Department", "Aisle", "Brand", …
+  "key":              "Aisle",       // facet type: "Department", "Aisle", "Brand", ...
   "value":            "88",          // numeric string identifier
   "name":             "Beef",        // human label
   "productCount":     103,
   "isBooleanValue":   false,
   "shelfResponses": [                // empty at top level; populated in dept responses
     { "id": 541, "label": "Steak", "url": "steak" },
-    …
+    ...
   ]
 }
 ```
@@ -382,10 +382,10 @@ Returns all click-and-collect pickup store locations.
           "name":   " Woolworths Northlands",
           "address": "cnr Main North & Sawyers Arms Roads,Northlands Click and Collect,8051,Northlands Click and Collect"
         },
-        …
+        ...
       ]
     },
-    …
+    ...
   ]
 }
 ```
@@ -674,7 +674,7 @@ to prevent redundant investigation.
 
 | Path | Error body |
 |------|-----------|
-| `/api/v1/stores` | `No HTTP resource was found … 'shop.countdown.co.nz/api/v1/stores'` |
+| `/api/v1/stores` | `No HTTP resource was found ... 'shop.countdown.co.nz/api/v1/stores'` |
 | `/api/v1/store` | 404 |
 | `/api/v1/store/finder` | 404 |
 | `/api/v1/store-location` | 404 |
@@ -744,105 +744,496 @@ narrow results:
 
 ```
 target=browse&dasFilter=Department;;meat-poultry;false;Aisle;;88;false
-→ HTTP 200  totalItems=624  (same as department-only filter)
+-> HTTP 200  totalItems=624  (same as department-only filter)
 ```
 
 The raw numeric format also does not work:
 
 ```
 target=browse&dasFilter=2;;1;false
-→ HTTP 200  totalItems=10000  (full catalogue, filter ignored)
+-> HTTP 200  totalItems=10000  (full catalogue, filter ignored)
 ```
 
 Shelf-level targeting returns zero results:
 
 ```
 target=browse&dasFilter=Department;;meat-poultry;false;Aisle;;88;false;Shelf;;541;false
-→ HTTP 200  totalItems=10000  (filter ignored)
+-> HTTP 200  totalItems=10000  (filter ignored)
 ```
 
 ---
 
-## 8. Per-Store Pricing — Key Finding
+## 8. Per-Store Pricing — Full Findings
 
-The `fulfilmentStoreId` and `pickupStoreId` query parameters on
-`/api/v1/products` are accepted without error (HTTP 200) but **do not change prices**.
+### 8.1 Initial Finding: Global Pricing via Query Parameters
 
-### Test methodology
+The `fulfilmentStoreId`, `pickupStoreId`, and 8 other store-context query parameters
+on `/api/v1/products` are accepted without error (HTTP 200) but produce **ZERO price
+changes**.
+
+#### Test methodology
 
 1. Called `GET /api/v1/products?target=search&search=milk&size=10` with no store
-   parameter → collected 10 products with their `sku` and `salePrice`.
+   parameter -> collected 10 products with their `sku` and `salePrice`.
 2. Called the same endpoint adding `fulfilmentStoreId=9171` (the default delivery
-   store from `context.fulfilment`) → compared every returned SKU price against
+   store from `context.fulfilment`) -> compared every returned SKU price against
    the baseline. **Zero changes.**
 3. Called the same endpoint adding `fulfilmentStoreId=1225718` (a pickup store,
-   Woolworths Northlands, from the pickup-addresses list) → **zero changes.**
+   Woolworths Northlands, from the pickup-addresses list) -> **zero changes.**
 
-### Parameters tested (all accepted, none effective)
+#### Parameters tested (all accepted, none effective)
 
 `fulfilmentStoreId`, `pickupStoreId`, `clickAndCollectStoreId`, `collectionStoreId`,
 `deliveryStoreId`, `storeCode`, `storeExternalReference`, `locationId`, `addressId`,
 `store`, `fulfilmentType`.
 
-Woolworths NZ uses a **global price list** across all stores for the catalogue API.
-Per-store pricing differences (if any) are applied at the checkout / fulfilment layer,
-not at product-search time. This means the meal-cost optimizer can safely use a single
-price search per ingredient across all nearby stores — the same ingredient will have
-the same catalogue price regardless of which store context is active.
+Initial conclusion: Woolworths NZ uses a **global price list** across all stores for
+the catalogue API. Per-store pricing differences (if any) are applied at the checkout /
+fulfilment layer, not at product-search time.
+
+**This conclusion was later found to be incomplete** — see sections 8.2-8.10.
+
+### 8.2 Discovery: Playwright Cookie Injection Changes Prices
+
+When Playwright captures cookies after selecting a store in the change-pick-up-store
+modal, and those cookies are injected into `requests.Session`, `/api/v1/products`
+returns **DIFFERENT per-store prices**.
+
+#### Known price differential used for validation
+
+| Store | pickupAddressId | Woolworths Milk Standard 3L salePrice |
+|-------|-----------------|--------------------------------------|
+| Greymouth | 764300 | $7.15 |
+| Glenfield | 1190273 | $7.33 |
+
+#### Tests
+
+- Full 67-cookie jar injection: [OK] confirmed working ($7.15 / $7.33)
+- Tested in `explore_woolworths_api_part2.py` Step 2
+
+### 8.3 Discovery: URL-Param Seeding Does NOT Work
+
+Visiting `https://www.woolworths.co.nz/?pickupStoreId=764300` does **NOT** set cookies
+that change API prices. The store context is set exclusively by browser-side JavaScript,
+not URL parameters. The server does not translate URL params into cookies.
+
+Tested in `explore_woolworths_api_part2.py` Step 1.
+
+### 8.4 Cookie Analysis — Which Cookies Matter
+
+#### Full cookie jar breakdown (67 cookies from Greymouth capture)
+
+| Domain | # Cookies | Example names | Required? |
+|--------|-----------|---------------|-----------|
+| `.woolworths.co.nz` | ~30 | AKA_A2, rxVisitor, dtSa, dtPC, _abck, ak_bmsc, utag_main_* | Most NOT required individually |
+| `.www.woolworths.co.nz` | 1 | RT (Adobe Analytics ECID) | NOT required |
+| `www.woolworths.co.nz` | ~15 | cw-ssuflow, agaCORS, aga, ASP.NET_SessionId, XSRF-TOKEN, cw-lrkswrdjp | cw-lrkswrdjp IS required |
+| `.doubleclick.net` | 1 | IDE | NOT required |
+| `.adnxs.com` | 2 | uuid2, XANDR_PANID | NOT required |
+| `.tealiumiq.com` | 3 | tcs.google_gid, tcs.google_cver, TAPID | NOT required |
+| `.rubiconproject.com` | 4 | audit_p, khaos, khaos_p, audit | NOT required |
+| `.casalemedia.com` | 3 | CMID, CMPS, CMPRO | NOT required |
+| `.pubmatic.com` | 2 | KRTBCOOKIE_377, PugT | NOT required |
+| `.bidswitch.net` | 2 | tuuid, c | NOT required |
+| `.adsrvr.org` | 2 | TDID, TDCPM | NOT required |
+| `.optimizely.com` | 1 | session_state (cdn.optimizely.com) | NOT required |
+| `a21125881217.cdn.optimizely.com` | 1 | session_state | NOT required |
+| `.kampyle.com` | 4 | kampyle_userid, kampyleUserSession, etc. | NOT required |
+| `.woolworths.co.nz` | 1 | _fbp, _ga, _ga_*, _gcl_au | NOT required |
+
+#### Tests proving which cookies are NOT required
+
+- session_state cookie only: both stores return $7.33 (wrong) [FAIL] — tested in `explore_woolworths_api_part2.py` Step 2b
+- RT cookie only: both stores return $7.33 (wrong) [FAIL] — tested in `explore_woolworths_api_part2.py` Step 2c
+- RT + session_state together: not sufficient on their own [FAIL]
+- All 67 cookies injected: works ($7.15 / $7.33) [OK] — tested in `explore_woolworths_api_part2.py` Step 2
+
+#### The crucial cookie: cw-lrkswrdjp
+
+Injecting ONLY this 1 cookie (no session_state, no RT, no other Playwright cookies)
+correctly sets the store context. Confirmed in `explore_woolworths_api_part3.py` Step 3b
+and 3c. This is the **ONLY cookie required for per-store pricing**.
+
+### 8.5 The cw-lrkswrdjp Cookie — Structure and Construction
+
+#### Format
+
+```
+dm-Pickup,f-9009,a-224,s-38    (Greymouth)
+dm-Pickup,f-9443,a-440,s-38    (Glenfield)
+dm-Pickup,f-9101,a-720,s-38    (Birkenhead)
+```
+
+#### Field definitions
+
+| Field | Prefix | Meaning | Example | Required? |
+|-------|--------|---------|---------|-----------|
+| dm | dm- | Delivery method | Pickup | YES (always "Pickup" for pickup stores) |
+| f | f- | fulfilmentStoreId (internal) | 9009 | YES — this is the key field |
+| a | a- | areaId (internal fulfilment area) | 224 | NO — cookie works without it |
+| s | s- | Site/segment constant | 38 | NO — cookie works without it, confirmed constant across all tested stores |
+
+#### Minimum viable cookie
+
+`dm-Pickup,f-{fulfilmentStoreId}` is sufficient. The a- and s- fields are optional.
+
+Tested in `explore_woolworths_api_part3.py` Step 3c: injecting
+`cw-lrkswrdjp=dm-Pickup,f-9009,a-0,s-38` and `cw-lrkswrdjp=dm-Pickup,f-9009,a-224`
+both correctly set the shell context.
+
+#### How fulfilmentStoreId differs from pickupAddressId
+
+- **pickupAddressId**: the public store ID visible in `/api/v1/addresses/pickup-addresses`
+  (e.g., 764300 for Greymouth)
+- **fulfilmentStoreId**: an internal ID used by the cookie (e.g., 9009 for Greymouth)
+- These are DIFFERENT numbers with no formulaic relationship
+- fulfilmentStoreId is NOT available from any API endpoint
+
+#### Where fulfilmentStoreId IS available: woolworths_store_data.json
+
+The `extra1` field in `data/woolworths_store_data.json` (fetched from the Woolworths
+store locator API) IS the fulfilmentStoreId:
+
+| Store | extra1 | fulfilmentStoreId | Match? |
+|-------|--------|-------------------|--------|
+| Greymouth | 9009 | 9009 | [OK] |
+| Glenfield | 9443 | 9443 | [OK] |
+| Birkenhead | 9101 | 9101 | [OK] |
+
+Verified across all 3 known stores with 100% accuracy.
+
+The `extra2` field is the pickupAddressId:
+
+| Store | extra2 | pickupAddressId | Match? |
+|-------|--------|-----------------|--------|
+| Greymouth | 764300 | 764300 | [OK] |
+| Glenfield | 1190273 | 1190273 | [OK] |
+| Birkenhead | 2124460 | 2124460 | [OK] |
+
+Note: extra1 does NOT always equal site.id (only 38 out of 183 stores match). extra1
+is the correct fulfilmentStoreId.
+
+### 8.6 Cookie Lifespan and Expiry
+
+- session_state cookies expire when browser closes (session scope)
+- First-party `.woolworths.co.nz` cookies appear session-scoped or short-lived
+  (1-4 hours observed)
+- The cw-lrkswrdjp cookie itself may be longer-lived since it's a simple encoded value
+- `/api/v1/shell` can validate cookie freshness: if fulfilmentStoreId == 9171 (default),
+  cookies have expired or were not injected
+
+### 8.7 Why Other Cookies Are Not Needed
+
+The 66 other cookies in the full jar fall into these categories:
+
+1. **Security/bot-detection cookies** (AKA_A2, _abck, ak_bmsc, bm_sz): These are
+   Akamai Bot Manager cookies. They validate that the request comes from a real browser.
+   However, they are NOT required for API calls — the API returns correct data with just
+   the x-requested-with header and a standard User-Agent. These cookies are only needed
+   if Akamai starts blocking requests (which it hasn't for the /api/v1 endpoints).
+
+2. **Analytics/tracking cookies** (rxVisitor, dtSa, dtPC, dtCookie, dtid, rxvt,
+   utag_main_*, _fbp, _ga, _gcl_au): These are Dynatrace, Tealium, and Google Analytics
+   cookies. They track user behaviour for analytics purposes. They have NO effect on
+   store context or pricing.
+
+3. **Third-party ad cookies** (IDE, uuid2, XANDR_PANID, TDID, TDCPM, audit_p, khaos,
+   CMID, CMPS, CMPRO, KRTBCOOKIE_377, PugT, tuuid, c): These are advertising network
+   cookies (Google, AppNexus, Rubicon, PubMatic, etc.). They are assigned probabilistically
+   and are completely irrelevant to store context.
+
+4. **Adobe Analytics** (RT on .www.woolworths.co.nz): This is the Adobe ECID (Experience
+   Cloud ID) cookie. It's a persistent browser identifier but is NOT store-specific.
+   Testing proved it does not affect pricing.
+
+5. **Optimizely** (session_state): A/B testing session cookie. Not store-specific.
+
+6. **Session/security** (ASP.NET_SessionId, XSRF-TOKEN, aga, agaCORS, cw-ssuflow,
+   cw-arjshtsw, cw-laie, cw-lrkswrdjp): These are server-side session tokens. Most are
+   set by the server on the initial GET /. Only cw-lrkswrdjp carries store context.
+
+7. **Kampyle** (kampyle_userid, kampyleUserSession, etc.): Feedback/UX analytics.
+   Irrelevant.
+
+### 8.8 Playwright — When It IS and IS NOT Required
+
+#### NOT required (just requests + constructed cookie)
+
+- Product price searches: construct cw-lrkswrdjp from mapping, inject, call /api/v1/products
+- Store context validation: call /api/v1/shell after injection, check fulfilmentStoreId
+- All read-only operations on the API
+
+#### IS required (one-time only)
+
+- Initial mapping capture: Playwright must visit the store-selection modal for each store
+  to extract the cw-lrkswrdjp cookie value. This captures the fulfilmentStoreId (extra1)
+  and areaId (a-field).
+- **HOWEVER**: the fulfilmentStoreId is already available in woolworths_store_data.json as
+  extra1, so Playwright may not be needed even for initial capture if we only need the
+  f-field.
+- The areaId (a-field) is NOT in any data source and would require Playwright to capture.
+  But since it's optional, this is not a blocker.
+
+#### Architecture implication
+
+With the extra1 mapping from woolworths_store_data.json, we can construct cw-lrkswrdjp
+cookies for ALL 183 stores without any Playwright:
+
+```python
+cookie_val = f"dm-Pickup,f-{extra1},s-38"
+```
+
+### 8.9 Validation: Constructed Cookie Produces Per-Store Pricing
+
+Testing in `explore_woolworths_api_part4.py` confirmed:
+
+- 3/3 stores: constructed cookie correctly sets /api/v1/shell context [OK]
+- 21/21 milk products: constructed cookie produces different prices between Greymouth
+  and Glenfield [OK]
+- Key prices: SKU 282768 (Woolworths Milk Standard 3L): Greymouth $7.15, Glenfield $7.33
+  (+$0.18)
+- Constructed cookie is equivalent to full 67-cookie Playwright jar
+
+### 8.10 Cookie Construction — Minimal vs Full
+
+| Cookie value | Works for context? | Works for pricing? | Notes |
+|-------------|-------------------|-------------------|-------|
+| `dm-Pickup,f-9009` | [OK] YES | [OK] YES | Minimum viable |
+| `dm-Pickup,f-9009,a-224` | [OK] YES | [OK] YES | With areaId |
+| `dm-Pickup,f-9009,a-224,s-38` | [OK] YES | [OK] YES | Full cookie |
+| `dm-Pickup,f-9009,a-0,s-38` | [OK] YES | [OK] YES | areaId=0 works |
+| `dm-Pickup,f-764300,a-224,s-38` | [FAIL] NO (default 9171) | [FAIL] NO | pickupAddressId as f-field does NOT work |
+| *(no cookie)* | [FAIL] NO (default 9171) | [FAIL] NO | Baseline |
 
 ---
 
-## 9. Summary of API Capabilities
+## 9. Store ID Mapping
+
+### 9.1 Three ID Types
+
+| ID Type | Source | Example (Greymouth) | Where found |
+|---------|--------|---------------------|-------------|
+| pickupAddressId | `/api/v1/addresses/pickup-addresses` | 764300 | `storeAddresses[].id` |
+| fulfilmentStoreId | woolworths_store_data.json extra1 | 9009 | `siteDetail[].site.extra1` |
+| site.id | woolworths_store_data.json | 9469 | `siteDetail[].site.id` |
+
+### 9.2 Mapping Table (3 stores verified via Playwright)
+
+| Store | pickupAddressId | fulfilmentStoreId (extra1) | areaId (from cookie) | site.id |
+|-------|-----------------|---------------------------|---------------------|---------|
+| Greymouth | 764300 | 9009 | 224 | 9469 |
+| Glenfield | 1190273 | 9443 | 440 | 9163 |
+| Birkenhead | 2124460 | 9101 | 720 | 9145 |
+
+### 9.3 How to Build the Full Mapping
+
+1. Load `woolworths_store_data.json`
+2. For each siteDetail, extract: name, extra1 (fulfilmentStoreId), extra2 (pickupAddressId)
+3. Cross-reference with `woolworths_store_choices.csv` to get store names
+4. Save as a unified mapping: `pickupAddressId -> {fulfilmentStoreId, name}`
+5. Cookie construction: `dm-Pickup,f-{extra1},s-38`
+
+### 9.4 Data Sources for Store Data
+
+| File | Content | Source |
+|------|---------|--------|
+| woolworths_store_data.json | Site details including extra1/extra2 | Get_woolworths_store_API_data.py (CDX API) |
+| woolworths_store_choices.csv | Store IDs and names | Get_woolworths_store_choices.py (pickup-addresses API) |
+| woolworths_stores.csv | Store locations with lat/lon | Merge_woolworths_stores.py |
+| store_id_mapping.json | Playwright-captured fulfilmentStoreId/areaId | explore_woolworths_api_part4.py |
+
+---
+
+## 10. Production Architecture
+
+### 10.1 How to Get Per-Store Prices (No Playwright Required)
+
+```python
+import requests, json
+
+# 1. Load store mapping
+with open('data/woolworths_store_data.json') as f:
+    store_data = json.load(f)
+
+# Build lookup: pickupAddressId -> fulfilmentStoreId
+store_map = {}
+for detail in store_data.get('siteDetail', []):
+    site = detail.get('site', {})
+    extra1 = site.get('extra1')  # fulfilmentStoreId
+    extra2 = site.get('extra2')  # pickupAddressId
+    name = site.get('name', '')
+    if extra1 and extra2 and str(extra1) != 'null':
+        store_map[str(extra2)] = {
+            'fulfilmentStoreId': int(extra1),
+            'name': name,
+        }
+
+# 2. Set store context
+def set_store_context(session, pickup_address_id):
+    """Inject cw-lrkswrdjp cookie for the given store."""
+    store = store_map.get(str(pickup_address_id))
+    if not store:
+        raise ValueError(f'Store {pickup_address_id} not in mapping')
+
+    fsid = store['fulfilmentStoreId']
+    cookie_val = f'dm-Pickup,f-{fsid},s-38'
+    session.cookies.set('cw-lrkswrdjp', cookie_val,
+                        domain='www.woolworths.co.nz', path='/')
+
+    # Validate via shell
+    resp = session.get('https://www.woolworths.co.nz/api/v1/shell', timeout=15)
+    fulf = resp.json().get('context', {}).get('fulfilment', {})
+    if fulf.get('fulfilmentStoreId') == 9171:
+        raise RuntimeError('Cookie not accepted — store context not set')
+    return fulf
+
+# 3. Search for products
+def search_products(session, query, size=5):
+    """Search products with current store context."""
+    resp = session.get(
+        'https://www.woolworths.co.nz/api/v1/products',
+        params={'target': 'search', 'search': query, 'size': size},
+        timeout=15,
+    )
+    return resp.json().get('products', {}).get('items', [])
+
+# 4. Usage
+session = requests.Session()
+session.headers.update({
+    'x-requested-with': '??',
+    'User-Agent': 'Mozilla/5.0 ...',
+    'Accept': 'application/json, text/plain, */*',
+})
+session.get('https://www.woolworths.co.nz/', timeout=15)  # seed cookies
+
+set_store_context(session, pickup_address_id=764300)  # Greymouth
+items = search_products(session, 'milk')
+for item in items:
+    print(f"${item['price']['salePrice']} — {item['name']}")
+```
+
+### 10.2 Architecture Diagram
+
+```
+woolworths_store_data.json
+  |
+  v
+store_map: {pickupAddressId: {fulfilmentStoreId, name}}
+  |
+  v
+set_store_context(session, pickupAddressId):
+  cookie = f"dm-Pickup,f-{fulfilmentStoreId},s-38"
+  session.cookies.set("cw-lrkswrdjp", cookie)
+  |
+  v
+/api/v1/shell -> validate fulfilmentStoreId != 9171
+  |
+  v
+/api/v1/products?target=search&search=<ingredient>
+  |
+  v
+item["price"]["salePrice"] -> per-store price
+```
+
+### 10.3 When Playwright IS Still Needed
+
+Playwright is NOT needed for any API operation. It is only needed if you want to:
+
+1. Scrape the actual website (not the API) for data not available via /api/v1
+2. Perform actions that require a real browser (e.g., adding to trolley, checkout)
+3. Access authenticated endpoints (e.g., /api/v1/trolleys/my)
+
+For the meal cost optimizer, the API + constructed cookies are sufficient.
+
+### 10.4 Cookie Refresh Strategy
+
+The cw-lrkswrdjp cookie is a simple encoded value — it does not expire on its own.
+However, other session cookies (ASP.NET_SessionId, XSRF-TOKEN, etc.) do expire.
+Strategy:
+
+1. On each query, seed session with GET / (gets fresh baseline cookies)
+2. Inject cw-lrkswrdjp (overwrites store context)
+3. If /api/v1/shell returns fulfilmentStoreId=9171, re-seed and retry once
+4. If still failing, the cookie value may need updating (unlikely since it's static)
+
+---
+
+## 11. Summary of API Capabilities
 
 | Capability | Available via API? | Method |
 |-----------|-------------------|--------|
-| Search products by keyword | Yes | `GET /api/v1/products?target=search&search=<term>` |
-| Browse full catalogue (10K items) | Yes | `GET /api/v1/products?target=browse` |
-| Filter by department | Yes (partial) | `target=browse&dasFilter=Department;;<slug>;false` |
-| Filter by aisle | No (accepted but ignored) | — |
-| Filter by shelf | No | — |
-| Sort by price (asc/desc) | Yes | `sort=PriceAsc` / `sort=PriceDesc` |
-| Sort by unit price | Yes | `sort=CUPAsc` |
-| Get per-store pricing | No | Prices are global |
-| Programmatically change store | No | No POST endpoint exists |
-| Get all pickup stores | Yes | `GET /api/v1/addresses/pickup-addresses` |
-| Get site navigation taxonomy | Yes | `GET /api/v1/shell` |
-| Get session fulfilment context | Yes | `context.fulfilment` inside `/api/v1/shell` |
-| View trolley / cart | No (unauthenticated) | 401 |
-| Get delivery slot availability | No | 404 |
-
-### What the API cannot do (requires browser / Playwright)
-
-- **Set the pickup store context** — must be done via browser cookie by navigating to
-  the Woolworths website, visiting the store-selection modal, and selecting a store.
-  `scripts/woolworths/ChangeStore.py` automates this via Playwright by navigating
-  directly to `https://www.woolworths.co.nz/bookatimeslot/(hww-modal:change-pick-up-store)`
-  and clicking the store button.
-- **Access member-only prices** — `price.isMemberPrice` is always `null` without an
-  authenticated session. ClubPrice (`isClubPrice`) is visible without login.
-- **Access checkout / trolley operations** — all protected endpoints return 401.
+| Search products by keyword | [OK] Yes | `GET /api/v1/products?target=search&search=<term>` |
+| Browse full catalogue (10K items) | [OK] Yes | `GET /api/v1/products?target=browse` |
+| Filter by department | [OK] Yes (partial) | `target=browse&dasFilter=Department;;<slug>;false` |
+| Filter by aisle | [WARN] Accepted but ignored | — |
+| Filter by shelf | [FAIL] No | — |
+| Sort by price (asc/desc) | [OK] Yes | `sort=PriceAsc` / `sort=PriceDesc` |
+| Sort by unit price | [OK] Yes | `sort=CUPAsc` |
+| Get per-store pricing | [OK] YES | Inject cw-lrkswrdjp cookie (constructed from extra1) |
+| Programmatically change store | [OK] YES | Set cw-lrkswrdjp cookie — no POST endpoint needed |
+| Get all pickup stores | [OK] Yes | `GET /api/v1/addresses/pickup-addresses` |
+| Get site navigation taxonomy | [OK] Yes | `GET /api/v1/shell` |
+| Get session fulfilment context | [OK] Yes | `context.fulfilment` inside `/api/v1/shell` |
+| View trolley / cart | [FAIL] No (unauthenticated) | 401 |
+| Get delivery slot availability | [FAIL] No | 404 |
 
 ---
 
-## 10. Practical Usage for the Meal Cost Optimizer
+## 12. Key Gotchas
 
-The API is sufficient to replace the Playwright-based scraping layer entirely for the
-product-price component:
+1. **Prices are NOT global** — the initial finding of "global pricing" was wrong. Prices
+   ARE per-store, but only when the correct cookie (cw-lrkswrdjp) is set. Query
+   parameters alone do not change prices.
+2. **fulfilmentStoreId != pickupAddressId** — these are different numbers. Use extra1
+   from woolworths_store_data.json for the cookie.
+3. **x-requested-with header is mandatory** — omitting it returns HTTP 400. The literal
+   string "??" works.
+4. **session.get(BASE_URL) must be called first** — seeds baseline cookies that the
+   API expects.
+5. **Cookie domain must be correct** — set cw-lrkswrdjp on domain
+   "www.woolworths.co.nz" (not ".woolworths.co.nz").
+6. **areaId is optional** — the cookie works with just
+   `dm-Pickup,f-{fulfilmentStoreId}`. The a- and s- fields are not required.
+7. **s-38 is constant** — confirmed across Greymouth, Glenfield, and Birkenhead. Safe
+   to hardcode.
+8. **Playwright headless=False required** — if you do use Playwright, the site blocks
+   headless Chromium.
+9. **Nominatim geocoding rate limit** — 1 req/sec for address lookups.
+10. **Store names have leading spaces** — some records in pickup-addresses have leading
+    spaces in the name field.
 
-```
-1. Seed session:    session.get("https://www.woolworths.co.nz/")
-2. Search:          session.get("/api/v1/products",
-                         params={"target":"search","search":<ingredient>,"size":3})
-3. Read price:      item["price"]["salePrice"]
-4. Read SKU:        item["sku"]
-5. Read unit:       item["unit"]
-```
+---
 
-Store filtering (finding which stores are within 5 km) continues to use the
-pre-built `data/woolworths_stores.csv` (merged from the location API and pickup
-choices API). The `woolworths_store_choices.csv` provides `id` → `name` mapping;
-the `woolworths_store_data.csv` provides latitude/longitude.
+## 13. Exploration Scripts
 
-The Playwright layer is **still required** for the store-switching step (to set the
-correct availability context before browsing), but product prices can be fetched via
-the JSON API using the same browser session cookies.
+| Script | Phase | Purpose |
+|--------|-------|---------|
+| explore_woolworths_api.py | Original | Black-box API probing, endpoint enumeration, dasFilter taxonomy |
+| explore_woolworths_api_part2.py | Phase 1 | URL-param seeding test, Playwright cookie capture/injection, cookie diff, session_state/RT isolation |
+| explore_woolworths_api_part3.py | Phase 2 | /api/v1/shell validation, fulfilmentStoreId query param test, cw-lrkswrdjp deep-dive (3b: cookie-only injection, 3c: minimal cookie) |
+| explore_woolworths_api_part4.py | Phase 3 | Programmatic cookie construction, mapping capture, price validation (21/21 products), constructed vs full jar comparison |
+
+---
+
+## 14. Files and Data Sources
+
+| File | Purpose |
+|------|---------|
+| Woolworths_API.md | This document |
+| exploration_plan.md | Detailed findings and implementation checklist |
+| compaction.md | Session-by-session progress record |
+| AGENTS.md | Project overview and file structure |
+| scripts/woolworths/explore_woolworths_api.py | Original API exploration |
+| scripts/woolworths/explore_woolworths_api_part2.py | Phase 1: cookie injection |
+| scripts/woolworths/explore_woolworths_api_part3.py | Phase 2: shell validation, cw-lrkswrdjp |
+| scripts/woolworths/explore_woolworths_api_part4.py | Phase 3: programmatic construction |
+| scripts/woolworths/Get_woolworths_store_choices.py | Fetches pickup store list from API |
+| scripts/woolworths/Get_woolworths_store_API_data.py | Fetches store details (extra1/extra2) from CDX API |
+| scripts/woolworths/Merge_woolworths_stores.py | Merges store choices and location data |
+| scripts/woolworths/ChangeStore.py | Playwright store selection (reference) |
+| scripts/woolworths/woolworths_optimizer.py | Main async optimizer |
+| data/woolworths_store_data.json | Store details with extra1 (fulfilmentStoreId) |
+| data/woolworths_store_choices.csv | Store IDs and names |
+| data/woolworths_stores.csv | Store locations with lat/lon |
+| data/store_id_mapping.json | Playwright-captured mapping (3 stores) |
+| data/part2_cookies.json | Playwright-captured cookie jars |

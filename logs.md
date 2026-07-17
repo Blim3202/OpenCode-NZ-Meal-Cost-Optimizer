@@ -54,7 +54,7 @@
 
 **Cause**: The endpoint requires a non-empty `x-requested-with` header (any string, including `??` or `XMLHttpRequest`). The original testing omitted this header entirely, causing the 400. A single `GET /` to seed cookies is also sufficient — no Playwright session or authenticated state is needed.
 
-**Resolution**: The API is fully functional with `requests.Session` when the `x-requested-with: ??` header is included. Full endpoint documentation in `Woolworths_API.md`. The Playwright scraping layer remains useful only for store-context switching (which requires browser cookies), not for product search.
+**Resolution**: The API is fully functional with `requests.Session` when the `x-requested-with: ??` header is included. Playwright is NOT needed at runtime for any API operation. Per-store pricing is achieved via `cw-lrkswrdjp` cookie injection (see Log #16). Full endpoint documentation in `Woolworths_API.md`.
 
 ## 8. Headless Playwright blocked on Woolworths (`ERR_HTTP2_PROTOCOL_ERROR`)
 
@@ -116,6 +116,70 @@
 - `GET /api/v1/addresses/pickup-addresses` returns all pickup stores (only `id`, `name`, `address` keys — no bridge to lat/lon).
 - `target=browse` with `dasFilter=Department;;<slug>;false` works for department-level filtering (14 departments, 100+ aisles mapped).
 - Aisle-level `dasFilter` chaining is accepted but does not seem to narrow results.
-- `fulfilmentStoreId`, `pickupStoreId`, and 9 other store-context parameters all return HTTP 200 but **do not change prices** — pricing is global to current knowledge.
+- `fulfilmentStoreId`, `pickupStoreId`, and 9 other store-context parameters all return HTTP 200 but **do not change prices** — pricing appeared global at this stage.
 - 19 POST store-switch endpoints all return 404 — no API path exists for programmatic store context changes.
 - Full documentation written to `Woolworths_API.md`.
+
+**Update**: Per-store pricing was later discovered via `cw-lrkswrdjp` cookie injection (see Logs #16-#20). The query-parameter approach was a dead end, but the cookie approach works.
+
+## 16. Playwright Cookie Injection Produces Per-Store Pricing
+
+**Symptom**: Needed to determine if per-store pricing exists at all, or if Woolworths truly uses a global price list.
+
+**Cause**: Previous testing (Log #15) only tested query parameters, not cookie-based store context. The `cw-lrkswrdjp` cookie carries store context but was not tested.
+
+**Resolution**: Built `explore_woolworths_api_part2.py`. Captured full Playwright cookie jars for Greymouth and Glenfield after selecting each store in the change-pick-up-store modal. Injected the full 67-cookie jar into `requests.Session` via `session.cookies.set()`. Searched "milk" at both stores:
+- Greymouth: Woolworths Milk Standard 3L = **$7.15** [OK]
+- Glenfield: Woolworths Milk Standard 3L = **$7.33** [OK]
+- Price difference: $0.18 confirmed
+
+Also tested URL-param seeding (`?pickupStoreId=764300`), session_state-only injection, and RT-only injection — all failed. Only the full cookie jar (or the `cw-lrkswrdjp` cookie specifically) works.
+
+## 17. `cw-lrkswrdjp` Is the Sole Per-Store Cookie
+
+**Symptom**: Needed to determine which of the 67 Playwright cookies controls store context, to avoid depending on the full jar.
+
+**Cause**: The full 67-cookie jar works, but capturing and injecting all cookies is fragile and complex. Identifying the single required cookie would simplify the architecture.
+
+**Resolution**: Built `explore_woolworths_api_part3.py`. Systematically isolated cookies:
+- Injecting only `session_state` (Optimizely): both stores return $7.33 (wrong) [FAIL]
+- Injecting only `RT` (Adobe Analytics): both stores return $7.33 (wrong) [FAIL]
+- Injecting only `cw-lrkswrdjp`: both stores return correct prices ($7.15 / $7.33) [OK]
+
+The `cw-lrkswrdjp` cookie format is `dm-Pickup,f-{fulfilmentStoreId},a-{areaId},s-{site}`. The `a-` and `s-` fields are optional — `dm-Pickup,f-{fulfilmentStoreId}` alone works.
+
+## 18. Cookie Construction from `extra1` — No Playwright Needed
+
+**Symptom**: Needed a way to construct `cw-lrkswrdjp` cookies for all 183 stores without running Playwright for each one.
+
+**Cause**: The `fulfilmentStoreId` used in the cookie is NOT the same as `pickupAddressId` (the public store ID). These are different numbers with no formulaic relationship. Without a mapping, Playwright would be needed to capture each store's `fulfilmentStoreId`.
+
+**Resolution**: Discovered that `extra1` in `woolworths_store_data.json` (fetched from CDX store locator API) IS the `fulfilmentStoreId`. Verified across 3 stores:
+- Greymouth: extra1=9009, cookie f-field=9009 [OK]
+- Glenfield: extra1=9443, cookie f-field=9443 [OK]
+- Birkenhead: extra1=9101, cookie f-field=9101 [OK]
+
+Cookie construction: `dm-Pickup,f-{extra1},s-38`. This works for all 183 stores without any Playwright.
+
+## 19. Fresh Session Per Store Required
+
+**Symptom**: When testing the cookie injection across multiple Auckland stores, all stores returned the same `fulfilmentStoreId` (9250) instead of their individual IDs.
+
+**Cause**: The server's `Set-Cookie` response from `GET /` includes a `cw-lrkswrdjp` cookie with the default store. When `session.cookies.set()` is called to inject a different value, the next request triggers the server to overwrite it with its own value. The injected cookie is effectively ignored on reused sessions.
+
+**Resolution**: Create a fresh `requests.Session` for each store. Each session gets its own `GET /` to seed cookies, then the `cw-lrkswrdjp` is injected before the server can overwrite it. Tested with 5 Auckland stores — all returned correct unique `fulfilmentStoreId`s (9250, 9045, 9500, 9405, 9544). Implemented in `woolworths_optimizer.py`.
+
+## 20. End-to-End Optimizer Test — Per-Store Pricing Working
+
+**Symptom**: Needed to verify the complete pipeline works: geocode, find stores, inject cookies, search products, compare costs.
+
+**Cause**: After building `woolworths_api.py` and refactoring `woolworths_optimizer.py`, needed end-to-end validation.
+
+**Resolution**: Ran optimizer with "123 Queen Street, Auckland CBD" and "spaghetti bolognese":
+- Found 9 stores within 5 km with unique fulfilmentStoreIds
+- Searched 7 ingredients at each store (63 API calls total)
+- Per-store price differences visible:
+  - Garlic: $2.50 (Newmarket) to $2.70 (most stores) — different products at different prices
+  - Total cost: Newmarket $18.60 (cheapest), most others $18.80
+- Pipeline working: geocode → nearby stores → fresh session per store → cookie injection → product search → cost comparison
+- No Playwright needed at runtime — pure `requests` + constructed cookies

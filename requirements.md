@@ -9,6 +9,7 @@ beautifulsoup4==4.14.3
 cloudscraper==1.2.71
 numpy==2.4.6
 pandas==3.0.3
+playwright==1.61.0
 requests==2.34.2
 ```
 

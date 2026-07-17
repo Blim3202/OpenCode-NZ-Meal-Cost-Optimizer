@@ -57,7 +57,7 @@ Store locations are now fetched and converted to CSV automatically using `script
 
 Initial testing of `GET /api/v1/products?target=search&search=milk` returned `400 Header is missing or is invalid.` — the documented endpoint is not usable without a verified authenticated session context. Playwright (headed Chromium) can load the public search results page and read rendered prices from Angular shadow DOM (`product-stamp-grid > div.product-entry`). Headless mode is unstable due to Akamai, so headed mode with `--disable-blink-features=AutomationControlled` is required. Successfully navigated to the Woolworths website and located the store selection dropdown.
 
-**Update: ** The `target=search` endpoint **does** work without authentication — the `400` was caused by a missing `x-requested-with: ??` header, not by missing session context. A single `GET /` seeds cookies, and the API can be called with `requests.Session`. This makes the Playwright scraping layer redundant for product price retrieval. See `Woolworths_API.md` for full documentation.
+**Update (resolved):** The `target=search` endpoint **does** work without authentication — the `400` was caused by a missing `x-requested-with: ??` header, not by missing session context. A single `GET /` seeds cookies, and the API can be called with `requests.Session`. Playwright is NOT needed at runtime for any API operation. The `cw-lrkswrdjp` cookie can be constructed from `extra1` in `woolworths_store_data.json` and injected into a `requests.Session` for per-store pricing. Playwright was only needed for the initial exploration/discovery phase.
 
 ## 14. Joined Woolworths store datasets via common ID
 
@@ -76,6 +76,39 @@ Use absolute path construction (`os.path.abspath`) with `__file__` or `os.getcwd
 
 The `GET /api/v1/products?target=search` endpoint requires the literal header `x-requested-with: ??` (or any non-empty string including `XMLHttpRequest`). Without this header, all API calls return HTTP 400. Discovered via black-box probing of the `/api/v1` surface + existing github repositories. This header was the sole blocker that previously made the API appear unusable.
 
-## 19. Woolworths global pricing — single price search per ingredient
+## 19. Woolworths per-store pricing — cookie injection, not query params
 
-`fulfilmentStoreId` and `pickupStoreId` query parameters on `/api/v1/products` are accepted (HTTP 200) but **do not change prices**. Woolworths NZ uses a single price list across all stores. Per-store pricing differences (if any) are applied at the checkout / fulfilment layer, not at product-search time. This means the optimizer only needs one price search per ingredient across all nearby stores — the same ingredient will have the same catalogue price regardless of which store context is active. Further research needed to check if per store pricing can be found by manipulating cookies.
+`fulfilmentStoreId` and `pickupStoreId` query parameters on `/api/v1/products` are accepted (HTTP 200) but **do not change prices**. Per-store pricing is controlled by the `cw-lrkswrdjp` cookie, which encodes `dm-Pickup,f-{fulfilmentStoreId},a-{areaId},s-{site}`. The cookie can be constructed from `extra1` in `woolworths_store_data.json` (verified 3/3 stores). Different stores return different prices (e.g., Greymouth Milk 3L = $7.15, Glenfield = $7.33). The optimizer must search each ingredient at each nearby store with a fresh session per store.
+
+## 20. `cw-lrkswrdjp` is the sole per-store cookie
+
+Of the 67 cookies captured from Playwright, only `cw-lrkswrdjp` carries store context. The other 66 cookies (session_state, RT, Akamai, analytics, ads) were systematically isolated and proven irrelevant — injecting them alone does not change pricing. The full 67-cookie jar produces the same result as injecting just `cw-lrkswrdjp`. This was verified in `explore_woolworths_api_part2.py` (session_state-only and RT-only tests) and `explore_woolworths_api_part3.py` (cookie-only injection).
+
+## 21. `extra1` in `woolworths_store_data.json` = `fulfilmentStoreId`
+
+The `extra1` field from the CDX store locator API (`api.cdx.nz`) is the `fulfilmentStoreId` used in the `cw-lrkswrdjp` cookie. Verified across 3 stores:
+
+| Store | extra1 | fulfilmentStoreId (from cookie) | Match |
+|-------|--------|--------------------------------|-------|
+| Greymouth | 9009 | 9009 | [OK] |
+| Glenfield | 9443 | 9443 | [OK] |
+| Birkenhead | 9101 | 9101 | [OK] |
+
+This means Playwright is NOT needed even for initial mapping capture — the cookie can be constructed for all 183 stores directly from the data file. The `extra2` field is the `pickupAddressId` (different number).
+
+## 22. Fresh session required per store
+
+The server's `Set-Cookie` response from `GET /` overwrites any injected `cw-lrkswrdjp` cookie when reusing a `requests.Session`. Tested by injecting cookies for 3 Auckland stores into the same session — only the first store's context was respected. Creating a fresh session (new `GET /`) for each store fixes this. This is implemented in `woolworths_optimizer.py`.
+
+## 23. `areaId` is optional in the cookie
+
+The `a-{areaId}` field in `cw-lrkswrdjp` is not required for per-store pricing. Tested in `explore_woolworths_api_part3.py` Step 3c:
+- `dm-Pickup,f-9009,a-0,s-38` works (areaId=0)
+- `dm-Pickup,f-9009,a-224` works (no s-field)
+- `dm-Pickup,f-9009` works (minimum viable)
+
+The `areaId` is NOT available from any API endpoint and would require Playwright to capture per-store. Since it's optional, this is not a blocker.
+
+## 24. `s-38` is constant across all tested stores
+
+The `s-{site}` field in `cw-lrkswrdjp` is `38` for Greymouth, Glenfield, and Birkenhead. Safe to hardcode in cookie construction.

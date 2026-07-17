@@ -1005,6 +1005,37 @@ Testing in `explore_woolworths_api_part4.py` confirmed:
 | `dm-Pickup,f-764300,a-224,s-38` | [FAIL] NO (default 9171) | [FAIL] NO | pickupAddressId as f-field does NOT work |
 | *(no cookie)* | [FAIL] NO (default 9171) | [FAIL] NO | Baseline |
 
+### 8.11 Fresh Session Per Store (Required)
+
+**The server's `Set-Cookie` response from `GET /` overwrites any injected
+`cw-lrkswrdjp` cookie when reusing a `requests.Session`.**
+
+Tested by injecting cookies for Metro Auckland (f-9250), Auckland City (f-9045),
+and Ponsonby (f-9500) into the same session:
+- First store (Metro Auckland): shell returns fulfilmentStoreId=9250 [OK]
+- Second store (Auckland City): shell STILL returns 9250 [FAIL] — cookie was overwritten
+- Third store (Ponsonby): shell STILL returns 9250 [FAIL] — cookie was overwritten
+
+**Root cause:** The `GET /` response includes `Set-Cookie: cw-lrkswrdjp=...` with the
+default store. When `session.cookies.set()` is called to inject a different value, the
+next `GET /` (or any request that triggers a cookie refresh) overwrites it with the
+server's value.
+
+**Fix:** Create a fresh `requests.Session` for each store:
+```python
+for store in nearby_stores:
+    session = create_session()       # new session + GET /
+    set_store_context(session, pid)  # inject cookie (not yet overwritten)
+    search_products(session, ...)    # works correctly
+```
+
+**Verified:** Fresh sessions correctly return per-store fulfilmentStoreIds:
+- Metro Auckland: 9250 [OK]
+- Auckland City: 9045 [OK]
+- Ponsonby: 9500 [OK]
+- Newmarket: 9405 [OK]
+- Mount Eden: 9544 [OK]
+
 ---
 
 ## 9. Store ID Mapping
@@ -1121,19 +1152,19 @@ woolworths_store_data.json
 store_map: {pickupAddressId: {fulfilmentStoreId, name}}
   |
   v
-set_store_context(session, pickupAddressId):
-  cookie = f"dm-Pickup,f-{fulfilmentStoreId},s-38"
-  session.cookies.set("cw-lrkswrdjp", cookie)
-  |
-  v
-/api/v1/shell -> validate fulfilmentStoreId != 9171
-  |
-  v
-/api/v1/products?target=search&search=<ingredient>
-  |
-  v
-item["price"]["salePrice"] -> per-store price
+FOR EACH store:
+  1. create_session()          # fresh requests.Session + GET / to seed cookies
+  2. set_store_context(session, pickupAddressId):
+       cookie = f"dm-Pickup,f-{fulfilmentStoreId},s-38"
+       session.cookies.set("cw-lrkswrdjp", cookie)
+  3. /api/v1/shell -> validate fulfilmentStoreId != 9171
+  4. /api/v1/products?target=search&search=<ingredient>
+  5. item["price"]["salePrice"] -> per-store price
 ```
+
+**CRITICAL: A fresh session must be created for each store.** The server's `Set-Cookie`
+response from `GET /` overwrites any injected `cw-lrkswrdjp` cookie on a reused session.
+See section 8.11 for details.
 
 ### 10.3 When Playwright IS Still Needed
 
@@ -1145,16 +1176,37 @@ Playwright is NOT needed for any API operation. It is only needed if you want to
 
 For the meal cost optimizer, the API + constructed cookies are sufficient.
 
-### 10.4 Cookie Refresh Strategy
+### 10.4 Fresh Session Per Store (Required)
+
+**The server's `Set-Cookie` response from `GET /` overwrites any injected
+`cw-lrkswrdjp` cookie when reusing a `requests.Session`.** This means:
+
+- Creating one session and switching stores by re-injecting the cookie does NOT work
+- The shell will continue returning the first store's `fulfilmentStoreId` regardless
+- A fresh session (new `GET /`) must be created for each store
+
+**Tested and confirmed:** Fresh sessions correctly return per-store fulfilmentStoreIds
+(9250, 9045, 9500 for Auckland stores). Reused sessions always return the first
+store's ID.
+
+**Implementation in `woolworths_optimizer.py`:**
+```python
+for store in nearby_stores:
+    session = create_session()       # fresh session per store
+    set_store_context(session, pid)  # inject cookie
+    search_products(session, ...)    # search with correct context
+```
+
+### 10.5 Cookie Refresh Strategy
 
 The cw-lrkswrdjp cookie is a simple encoded value — it does not expire on its own.
 However, other session cookies (ASP.NET_SessionId, XSRF-TOKEN, etc.) do expire.
 Strategy:
 
-1. On each query, seed session with GET / (gets fresh baseline cookies)
-2. Inject cw-lrkswrdjp (overwrites store context)
-3. If /api/v1/shell returns fulfilmentStoreId=9171, re-seed and retry once
-4. If still failing, the cookie value may need updating (unlikely since it's static)
+1. Create a fresh session per store (GET / to seed baseline cookies)
+2. Inject cw-lrkswrdjp (sets store context)
+3. If /api/v1/shell returns fulfilmentStoreId=9171, the cookie was not accepted
+4. The cookie value itself is static and does not need refreshing
 
 ---
 
@@ -1201,6 +1253,9 @@ Strategy:
 9. **Nominatim geocoding rate limit** — 1 req/sec for address lookups.
 10. **Store names have leading spaces** — some records in pickup-addresses have leading
     spaces in the name field.
+11. **Fresh session required per store** — reusing a `requests.Session` causes the
+    server's `Set-Cookie` response to overwrite the injected `cw-lrkswrdjp` cookie.
+    Create a new session (with `GET /`) for each store.
 
 ---
 
@@ -1223,17 +1278,18 @@ Strategy:
 | exploration_plan.md | Detailed findings and implementation checklist |
 | compaction.md | Session-by-session progress record |
 | AGENTS.md | Project overview and file structure |
-| scripts/woolworths/explore_woolworths_api_part1.py | Original API exploration |
-| scripts/woolworths/explore_woolworths_api_part2.py | Phase 2: cookie injection |
-| scripts/woolworths/explore_woolworths_api_part3.py | Phase 3: shell validation, cw-lrkswrdjp |
-| scripts/woolworths/explore_woolworths_api_part4.py | Phase 4: programmatic construction |
+| scripts/woolworths/woolworths_api.py | Cookie-based API module: session creation, store context injection, product search, nearby stores |
+| scripts/woolworths/woolworths_optimizer.py | API-based optimizer: geocode, nearby stores, per-store pricing, cost comparison |
+| scripts/woolworths/explore_woolworths_api_part1.py | Phase 1: black-box API probing, endpoint enumeration, dasFilter taxonomy |
+| scripts/woolworths/explore_woolworths_api_part2.py | Phase 2: URL-param seeding test, Playwright cookie capture/injection, cookie diff |
+| scripts/woolworths/explore_woolworths_api_part3.py | Phase 3: shell validation, cw-lrkswrdjp deep-dive (cookie-only injection, minimal cookie) |
+| scripts/woolworths/explore_woolworths_api_part4.py | Phase 4: programmatic cookie construction, mapping capture, price validation |
 | scripts/woolworths/Get_woolworths_store_choices.py | Fetches pickup store list from API |
 | scripts/woolworths/Get_woolworths_store_API_data.py | Fetches store details (extra1/extra2) from CDX API |
 | scripts/woolworths/Merge_woolworths_stores.py | Merges store choices and location data |
-| scripts/woolworths/ChangeStore.py | Playwright store selection (reference) |
-| scripts/woolworths/woolworths_optimizer.py | Main async optimizer |
-| data/woolworths_store_data.json | Store details with extra1 (fulfilmentStoreId) |
-| data/woolworths_store_choices.csv | Store IDs and names |
+| scripts/woolworths/ChangeStore.py | Playwright store selection via modal (reference implementation) |
+| data/woolworths_store_data.json | Store details with extra1 (fulfilmentStoreId) and extra2 (pickupAddressId) |
+| data/woolworths_store_choices.csv | Store IDs and names from pickup-addresses API |
 | data/woolworths_stores.csv | Store locations with lat/lon |
-| data/store_id_mapping.json | Playwright-captured mapping (3 stores) |
-| data/part2_cookies.json | Playwright-captured cookie jars |
+| data/store_id_mapping.json | Playwright-captured fulfilmentStoreId/areaId mapping (3 stores) |
+| data/part2_cookies.json | Playwright-captured full cookie jars (Greymouth, Glenfield, baseline) |

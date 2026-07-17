@@ -119,10 +119,82 @@ To add a dish: edit `DISH_INGREDIENTS` in `scripts/prototype.py` (or notebook ce
 ## CLI Usage
 
 ```powershell
-python scripts/prototype.py "Botany Town Centre, Auckland" "spaghetti bolognese"
+python scripts/paknsave/PaknSave_prototype.py "Botany Town Centre, Auckland" "spaghetti bolognese"
 ```
 
 Args: `[address] [dish name]`. Defaults to "123 Queen Street, Auckland CBD" and "spaghetti bolognese".
+
+## Woolworths API Architecture
+
+### How It Works
+
+```
+User input (address + dish)
+  → Geocode address to lat/lon (Nominatim)
+  → Haversine filter (stores within 5 km from woolworths_store_data.json)
+  → Dish name → ingredient list (DISH_INGREDIENTS map, 21 dishes)
+  → FOR EACH nearby store:
+      → Create fresh requests.Session + GET / to seed cookies
+      → Inject cw-lrkswrdjp cookie (constructed from extra1)
+      → Validate via /api/v1/shell (fulfilmentStoreId != 9171)
+      → Search each ingredient via /api/v1/products?target=search
+      → Collect per-store prices
+  → Aggregate prices, compare totals, display cheapest
+```
+
+### Woolworths API Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/v1/shell` | GET | Navigation taxonomy, session context, fulfilment details |
+| `/api/v1/products?target=search&search=<term>` | GET | Product search with prices |
+| `/api/v1/products?target=browse&dasFilter=Department;;<slug>;false` | GET | Browse by department |
+| `/api/v1/addresses/pickup-addresses` | GET | All pickup stores (id, name, address) |
+
+### Required Headers
+
+```
+x-requested-with:  ??           <- literal string, not a placeholder
+User-Agent:        Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...
+Accept:            application/json, text/plain, */*
+```
+
+### Cookie-Based Store Context
+
+The `cw-lrkswrdjp` cookie controls per-store pricing:
+```
+dm-Pickup,f-{fulfilmentStoreId},a-{areaId},s-38
+```
+
+- `fulfilmentStoreId` = `extra1` from `woolworths_store_data.json` (NOT the same as `pickupAddressId`)
+- `areaId` is optional (cookie works without it)
+- `s-38` is constant across all stores
+
+### woolworths_api.py Module
+
+```python
+from woolworths_api import create_session, set_store_context, search_products, find_cheapest, get_nearby_stores, geocode
+
+# Geocode address
+lat, lon = geocode("123 Queen Street, Auckland")
+
+# Find nearby stores
+stores = get_nearby_stores(lat, lon, max_dist_km=5)
+
+# Search with per-store pricing
+for store in stores:
+    session = create_session()  # fresh session per store (required!)
+    set_store_context(session, store["pickupAddressId"])
+    cheapest = find_cheapest(session, "beef mince")
+    print(f"{store['name']}: ${cheapest['salePrice']}")
+```
+
+### Key Constraints
+
+- **Fresh session per store**: The server's `Set-Cookie` response overwrites injected cookies on reused sessions
+- **No login required**: Public API endpoints work with unauthenticated sessions
+- **Search returns relevance, not cheapest**: Take first result for practical matches
+- **21 hand-curated dishes**: No NLP/LLM parsing yet
 
 ## Notebook Usage
 
@@ -150,3 +222,6 @@ Output:
 - **Unit sizes**: Prices shown for full units (e.g., whole kg of mince). A recipe may use less, so your actual cost is lower.
 - **Garlic pricing**: Loose garlic is per-kg ($40+). Crushed garlic jar ($2–3) is more practical and sometimes returned instead.
 - **Store density**: Auckland CBD has 1 store within 5 km. East Auckland (Botany/Manukau) has 3.
+- **Woolworths fresh session per store**: Each nearby store requires a separate `requests.Session` — cannot reuse one session across stores.
+- **Woolworths search relevance**: Generic terms like "garlic" or "mixed herbs" may return unrelated products (e.g., gravy mix for "herbs"). Ingredient queries need to be specific.
+- **Woolworths per-store pricing differences are small for nearby stores**: Auckland stores show $0.00-$0.20 differences per ingredient. Differences are larger for distant stores (e.g., Greymouth vs Glenfield: $0.18 for 3L milk).

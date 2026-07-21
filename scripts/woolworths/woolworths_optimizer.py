@@ -262,11 +262,11 @@ def main():
     if len(sys.argv) > 2:
         USER_ADDRESS = sys.argv[1]
         DISH_NAME = sys.argv[2]
-        OUTPUT_FILE = sys.argv[3] if len(sys.argv) > 3 else "data/latest_results.csv"
+        OUTPUT_FILE = sys.argv[3] if len(sys.argv) > 3 else "data/woolworths_latest_results.csv"
     else:
         USER_ADDRESS = "123 Queen Street, Auckland CBD, 1010"
         DISH_NAME = "spaghetti bolognese"
-        OUTPUT_FILE = "data/latest_results.csv"
+        OUTPUT_FILE = "data/woolworths_latest_results"
 
     user_lat, user_lon = geocode(USER_ADDRESS)
     if user_lat is None:

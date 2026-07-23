@@ -181,5 +181,62 @@ Cookie construction: `dm-Pickup,f-{extra1},s-38`. This works for all 183 stores 
 - Per-store price differences visible:
   - Garlic: $2.50 (Newmarket) to $2.70 (most stores) — different products at different prices
   - Total cost: Newmarket $18.60 (cheapest), most others $18.80
-- Pipeline working: geocode → nearby stores → fresh session per store → cookie injection → product search → cost comparison
-- No Playwright needed at runtime — pure `requests` + constructed cookies
+  - Pipeline working: geocode → nearby stores → fresh session per store → cookie injection → product search → cost comparison
+  - No Playwright needed at runtime — pure `requests` + constructed cookies
+
+## 21. New World store-finder page `__NEXT_DATA__` structure changed
+
+**Symptom**: The `fetch_stores.py` script for New World couldn't find `store_finder.regionStoreGroupings` in the `__NEXT_DATA__` JSON.
+
+**Cause**: The `__NEXT_DATA__` structure changed from Pak'nSave's layout. New World's store-finder nests `store_finder` inside `page.page_content.content_blocks[1]` instead of at the top level of `pageProps`.
+
+**Resolution**: Updated the JSON path to `data.props.pageProps.page.page_content.content_blocks[1].store_finder.regionStoreGroupings`. Verified the structure has `northIsland` and `southIsland` keys, each containing `groups` with `stores` arrays (each store has `title`, `url`, `address`).
+
+## 22. New World Edge API requires JWT auth (401)
+
+**Symptom**: `GET https://api-prod.newworld.co.nz/v1/edge/store/physical` returned HTTP 401 with `{"fault":{"faultstring":"Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)"}}`.
+
+**Cause**: The New World Edge API requires a JWT bearer token that cannot be obtained without proper authentication credentials. Various header combinations were tried (`x-requested-with`, `x-api-key`, `referer`, `accept`) — all failed.
+
+**Resolution**: Abandoned the Edge API. Switched to the Foodstuffs mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) which serves both Pak'nSave and New World with `banner: "PNS"` or `banner: "MNW"`.
+
+## 23. New World mobile API requires `NewWorldApp/4.32.0` User-Agent
+
+**Symptom**: The Foodstuffs mobile API worked for Pak'nSave (`banner: "PNS"`) but failed for New World (`banner: "MNW"`) with the same `PAKnSAVEApp/4.32.0` User-Agent.
+
+**Cause**: The mobile API validates the User-Agent against the banner. New World requests require `NewWorldApp/4.32.0` (analogous to `PAKnSAVEApp/4.32.0` for Pak'nSave).
+
+**Resolution**: Used `User-Agent: NewWorldApp/4.32.0` for all New World API requests. Guest login: `POST /mobile/user/login/guest` with `json={"banner": "MNW"}`.
+
+## 24. 22 New World stores missing coordinates via Nominatim
+
+**Symptom**: The initial `fetch_stores.py` used Nominatim geocoding on store-finder page addresses. Of 150 stores, 22 were missing coordinates (Eastridge, Howick, Kumeu, Te Atatu, Victoria Park, Aokautere, Broadway, Foxton, Masterton, Brookfield, Mt Maunganui, Tūrangi, Karori, Newlands, Silverstream, Stokes Valley, Whitby, Bishopdale, Ferry Road, Ilam, Nelson City, Greymouth).
+
+**Cause**: Nominatim could not resolve these addresses — either too vague, non-standard formatting, or missing from OSM data.
+
+**Resolution**: Switched to the Foodstuffs mobile API (`GET /mobile/store/physical`) which provides latitude/longitude directly for all 149 stores. Eliminated the Nominatim geocoding step entirely.
+
+## 25. 7 New World stores missing URLs (name mismatch between API and page)
+
+**Symptom**: After merging mobile API data (149 stores with coordinates/IDs) with store-finder page data (150 stores with URLs), 7 stores had no URL match.
+
+**Cause**: Store names differ between the mobile API and the store-finder page:
+- "Foodie Mart" (API) — not on the page (different entity)
+- "New World Metro Auckland" (API) vs "Metro Queen Street" (page)
+- "New World Metro Willis St" (API) vs "Willis Street Metro" (page)
+- "New World Mount Maunganui" (API) vs "Mt Maunganui" (page)
+- "New World Shore City" (API) vs "Metro Shore City" (page)
+- "New World Turangi" (API) vs "Tūrangi" (page — macron difference)
+- "New World Wanaka" (API) vs "Wānaka" (page — macron difference)
+
+**Resolution**: Accepted the 7 missing URLs. URLs are only used for linking to the store page on the website — not needed for the API-based optimizer. Could be fixed with fuzzy string matching (e.g., `fuzzywuzzy`) but is low priority.
+
+## 26. New World store count discrepancy (149 API vs 150 page)
+
+**Symptom**: The mobile API returns 149 stores; the store-finder page lists 150.
+
+**Cause**: "Foodie Mart" (35 Landing Drive, Mangere) appears in the mobile API but not on the store-finder page. It may be a different entity or temporarily excluded from the page.
+
+**Resolution**: Used the mobile API as the authoritative source (149 stores). The extra page store ("Te Atatu") is also not in the API. This store is set to open on 11/08/2026, suggesting that the API is currently filtered out not populated yet for this store.
+
+(End of file)

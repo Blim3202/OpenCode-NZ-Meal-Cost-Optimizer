@@ -112,3 +112,31 @@ The `areaId` is NOT available from any API endpoint and would require Playwright
 ## 24. `s-38` is constant across all tested stores
 
 The `s-{site}` field in `cw-lrkswrdjp` is `38` for Greymouth, Glenfield, and Birkenhead. Safe to hardcode in cookie construction.
+
+## 25. New World uses Foodstuffs mobile API with `banner: "MNW"`
+
+New World is owned by Foodstuffs (same as Pak'nSave). The mobile API at `api-prod.prod.fsniwaikato.kiwi/prod` serves both banners — use `banner: "PNS"` for Pak'nSave and `banner: "MNW"` for New World. The User-Agent must match the banner: `PAKnSAVEApp/4.32.0` for Pak'nSave, `NewWorldApp/4.32.0` for New World. This means New World stores can be fetched with the same infrastructure as Pak'nSave, just with different banner and User-Agent values.
+
+## 26. New World mobile API over Nominatim geocoding
+
+The Foodstuffs mobile API (`GET /mobile/store/physical`) returns latitude/longitude directly for all 149 New World stores. This eliminates the need for Nominatim geocoding, which failed on 22 stores. The API also provides store UUIDs, banner info, click-and-collect/delivery flags, and opening hours — all in a single request. No rate limiting concerns.
+
+## 27. New World Edge API abandoned
+
+The New World Edge API (`api-prod.newworld.co.nz/v1/edge/store/physical`) requires a JWT bearer token that cannot be obtained without proper authentication. Returns HTTP 401 with `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken)`. The Foodstuffs mobile API is the viable alternative and provides complete store data.
+
+## 28. New World store-finder page `__NEXT_DATA__` for URL slugs only
+
+The New World store-finder page (`https://www.newworld.co.nz/store-finder`) `__NEXT_DATA__` JSON provides URL slugs for 150 stores. The JSON path is `data.props.pageProps.page.page_content.content_blocks[1].store_finder.regionStoreGroupings` → `northIsland`/`southIsland` → `groups` → `stores`. Each store has `title`, `url`, and `address`. This is used as a secondary data source to add URL slugs to the mobile API data (which provides coordinates and store IDs but no URLs).
+
+## 29. Accept 7 New World stores without URLs
+
+7 stores have name mismatches between the mobile API and the store-finder page (e.g., "Metro Auckland" vs "Metro Queen Street", macron differences for Tūrangi/Wanaka). Fuzzy string matching could resolve these but is not needed — URLs are only for linking to the website, not for the API-based optimizer. The 142 stores with URLs are sufficient.
+
+## 30. New World `DISH_INGREDIENTS` map reuses Pak'nSave's
+
+The 21 dishes and their ingredient lists are identical between Pak'nSave and New World (both are NZ supermarkets with similar product ranges). The `NewWorld_prototype.py` will reuse the same `DISH_INGREDIENTS` map from `PaknSave_prototype.py`, only changing the banner and User-Agent.
+
+## 31. Playwright not needed for New World at runtime
+
+The Foodstuffs mobile API provides all store data (coordinates, IDs, banner) without any browser automation. Product search will use `GET /mobile/ecomm-products/MNW/{store_id}/search?q={query}` — same pattern as Pak'nSave. No Playwright needed for any New World operation, consistent with the Woolworths approach.

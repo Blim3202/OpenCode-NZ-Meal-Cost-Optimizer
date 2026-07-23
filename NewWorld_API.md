@@ -1,20 +1,21 @@
-# Pak'nSave / Foodstuffs North Island Mobile API Documentation
+# New World / Foodstuffs North Island Mobile API Documentation
 
 **API origin:** `api-prod.prod.fsniwaikato.kiwi` — despite the "FSNI" (Foodstuffs North
-Island) domain name, this API covers **all Pak'nSave stores nationwide** including
-both North Island (47 stores) and South Island (13 stores). It also works for
-New World with `banner: "MNW"`.
+Island) domain name, this API covers **all New World stores nationwide** including
+both North Island (101 stores) and South Island (48 stores). It also works for
+Pak'nSave with `banner: "PNS"`.
 
-[Confirmed working](scripts/paknsave/PaknSave_prototype.py): Dunedin, Invercargill,
-Queenstown, Christchurch-area stores (Riccarton, Hornby, Moorhouse, Papanui,
-Rangiora, Rolleston, Wainoni), Timaru, Blenheim, and Richmond all return valid
-per-store pricing through the mobile API.
+[Confirmed working](scripts/newworld/NewWorld_prototype.py): Auckland CBD stores
+(Metro Auckland, Newmarket, Devonport, Remuera, Mt Albert, Point Chevalier,
+Eastridge, Mt Roskill, Birkenhead, Stonefields, Shore City, Milford, New Lynn),
+plus stores nationwide (Christchurch, Dunedin, Wellington, Nelson, etc.) all return
+valid per-store pricing through the mobile API.
 
 ---
 
 ## 1. How This Documentation Was Discovered
 
-The Pak'nSave mobile API was first publicly documented by **[Arefu](https://github.com/Arefu)**
+The New World mobile API was first publicly documented by **[Arefu](https://github.com/Arefu)**
 through reverse engineering the Foodstuffs Android app. Key sources:
 
 - **[Foodstuffs PNS&NW Android App OpenAPI.yaml](https://github.com/Arefu/PaknSave/blob/main/_docs/Foodstuffs%20PNS%26NW%20Android%20App%20OpenAPI.yaml)** —
@@ -30,6 +31,11 @@ This document builds on Arefu's discovery to document every confirmed endpoint,
 parameter, response shape, and edge case encountered during integration into this
 project's meal cost optimizer. Where responses differ between the OpenAPI spec and
 observed behaviour, both are noted.
+
+The New World API is **identical in structure to the Pak'nSave API** — the only
+differences are the `banner` value (`"MNW"` vs `"PNS"`) and the `User-Agent` header
+(`NewWorldApp/4.32.0` vs `PAKnSAVEApp/4.32.0`). See [PaknSave_API.md](PaknSave_API.md)
+for the full Pak'nSave documentation.
 
 ---
 
@@ -53,7 +59,7 @@ All endpoints below are relative to `/prod`.
 The guest login endpoint requires only:
 
 ```
-User-Agent:    PAKnSAVEApp/4.32.0
+User-Agent:    NewWorldApp/4.32.0
 Content-Type:  application/json
 ```
 
@@ -64,7 +70,7 @@ After obtaining an `access_token`, all subsequent requests need both:
 ```
 Authorization:  Bearer {token}
 access_token:   {token}
-User-Agent:     PAKnSAVEApp/4.32.0
+User-Agent:     NewWorldApp/4.32.0
 Content-Type:   application/json
 ```
 
@@ -78,8 +84,8 @@ cause 401 errors.
 
 ### 4.1 Guest Login
 
-Pak'nSave uses a simple bearer-token auth model. No user account, no password,
-no OAuth — just a `POST` with a banner identifier:
+New World uses a simple bearer-token auth model, identical to Pak'nSave. No user
+account, no password, no OAuth — just a `POST` with a banner identifier:
 
 ```
 POST /mobile/user/login/guest
@@ -88,7 +94,7 @@ POST /mobile/user/login/guest
 #### Request body
 
 ```json
-{"banner": "PNS"}
+{"banner": "MNW"}
 ```
 
 `banner` values:
@@ -121,10 +127,10 @@ If the body is omitted entirely, a New World token is returned by default.
 
 #### Token auto-refresh
 
-The `PaknSaveAPI` class in this project automatically refreshes expired tokens:
+The `NewWorldAPI` class in this project automatically refreshes expired tokens:
 
 ```python
-class PaknSaveAPI:
+class NewWorldAPI:
     def __init__(self):
         self.scraper = cloudscraper.create_scraper()
         self._token = None
@@ -134,8 +140,8 @@ class PaknSaveAPI:
             return
         r = self.scraper.post(
             f"{BASE}/mobile/user/login/guest",
-            json={"banner": "PNS"},
-            headers={"User-Agent": "PAKnSAVEApp/4.32.0", "Content-Type": "application/json"},
+            json={"banner": "MNW"},
+            headers={"User-Agent": "NewWorldApp/4.32.0", "Content-Type": "application/json"},
         )
         r.raise_for_status()
         data = r.json()
@@ -143,7 +149,7 @@ class PaknSaveAPI:
         self._auth = {
             "Authorization": f"Bearer {self._token}",
             "access_token": self._token,
-            "User-Agent": "PAKnSAVEApp/4.32.0",
+            "User-Agent": "NewWorldApp/4.32.0",
             "Content-Type": "application/json",
         }
 ```
@@ -161,7 +167,7 @@ POST /mobile/v1/users/login/refreshtoken
 #### Request headers
 
 ```
-User-Agent: PAKnSAVEApp/4.32.0
+User-Agent: NewWorldApp/4.32.0
 ```
 
 #### Request body
@@ -214,19 +220,19 @@ Returns an object with a single `"stores"` key containing an array:
 {
   "stores": [
     {
-      "id": "65defcf2-bc15-490e-a84f-1f13b769cd22",
-      "name": "PAK'nSAVE Albany",
-      "banner": "PNS",
-      "address": "33 Don McKinnon Drive, Albany, Auckland 0632",
+      "id": "773ad0a0-024e-46c5-a94b-df1cf86d25cc",
+      "name": "New World Albany",
+      "banner": "MNW",
+      "address": "219 Don McKinnon Drive, Albany, Auckland 0632",
       "clickAndCollect": true,
       "delivery": true,
-      "latitude": -36.738224,
-      "longitude": 174.712257,
+      "latitude": -36.728207,
+      "longitude": 174.710519,
       "openingHours": [ ... ],
-      "phone": "09-415 8225",
-      "localPhone": "09-415 8225",
+      "phone": "09-441 8838",
+      "localPhone": "09-441 8838",
       "linkDetails": { ... },
-      "physicalStoreCode": "PN01",
+      "physicalStoreCode": "NW01",
       "region": "NI",
       "salesOrgId": "20",
       "onboardingMode": false,
@@ -249,7 +255,7 @@ Returns an object with a single `"stores"` key containing an array:
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | `string` (UUID) | Store identifier — used in all product/search endpoints |
-| `name` | `string` | Full store name, e.g. `"PAK'nSAVE Albany"` |
+| `name` | `string` | Full store name, e.g. `"New World Albany"` |
 | `banner` | `string` | `"PNS"` or `"MNW"` |
 | `address` | `string` | Full street address |
 | `latitude` | `float` | Precise store latitude (not geocoded) |
@@ -266,18 +272,19 @@ Returns an object with a single `"stores"` key containing an array:
 
 #### Store count
 
-60 stores are currently returned for `banner="PNS"`. Each store has a UUID-style
-`id` (e.g., `65defcf2-bc15-490e-a84f-1f13b769cd22`).
+149 stores are currently returned for `banner="MNW"`. Each store has a UUID-style
+`id` (e.g., `773ad0a0-024e-46c5-a94b-df1cf86d25cc`).
 
 #### Usage in this project
 
 ```python
-api = PaknSaveAPI()
+api = NewWorldAPI()
 stores = api.get_stores()  # returns {id: store_dict}
 ```
 
-The CSV fallback at `data/paknsave_stores.csv` is pre-built from the web
-store-finder page rather than the API, but uses the same `store_id` UUIDs.
+The CSV at `data/newworld_stores.csv` is pre-built from the mobile API + store-finder
+page, containing the same `store_id` UUIDs with name, address, lat, lon, url, and
+service flags for all 149 stores.
 
 ### 5.2 `POST /mobile/ecomm-products/{banner}/{storeId}/search?q={query}`
 
@@ -290,8 +297,8 @@ specific store, **with per-store pricing**.
 
 | Parameter | Type | Example |
 |-----------|------|---------|
-| `banner` | `string` | `"PNS"` |
-| `storeId` | `string` (UUID) | `"65defcf2-bc15-490e-a84f-1f13b769cd22"` |
+| `banner` | `string` | `"MNW"` |
+| `storeId` | `string` (UUID) | `"773ad0a0-024e-46c5-a94b-df1cf86d25cc"` |
 
 #### Query parameters
 
@@ -399,8 +406,9 @@ price_dollars = product["price"] / 100
 #### Per-store pricing
 
 Each `{storeId}` returns independent prices for the same product. For example,
-searching "standard milk" at Botany vs Ormiston may return different `price`
-values for the same `productId`. This is the foundation of the meal cost optimizer.
+searching "standard milk" at New World Albany vs New World Newmarket may return
+different `price` values for the same `productId`. This is the foundation of the
+meal cost optimizer.
 
 #### Pagination
 
@@ -466,34 +474,7 @@ To filter by deal category:
 
 #### Response structure
 
-```json
-{
-  "tobaccoFiltered": false,
-  "totalHits": 50,
-  "hitsPerPage": 20,
-  "numberOfPages": 3,
-  "page": 1,
-  "products": [
-    {
-      "productId": "...",
-      "brand": "Pams",
-      "name": "NZ Beef Mince",
-      "units": "kg",
-      "price": 1499,
-      "unitPrice": "$14.99/kg",
-      ...
-      "saleType": "special",
-      "algoliaAnalytics": { ... }
-    }
-  ],
-  "filters": {
-    "Deals": { "Super Specials": 20, "Weekly Specials": 30 },
-    "Dietary & lifestyle": { ... },
-    "Categories": { ... },
-    "Brands": { ... }
-  }
-}
-```
+Same product array format as search/specials.
 
 #### Known deal types (observed)
 
@@ -518,89 +499,37 @@ Returns the hierarchical product category tree for a specific store.
 
 #### Response structure
 
-```json
-[
-  {
-    "name": "Meat & Poultry",
-    "code": "delicounter",
-    "appContent": { ... },
-    "children": [
-      {
-        "name": "Beef",
-        "code": null,
-        "appContent": { ... },
-        "children": [
-          {
-            "name": "Mince",
-            "code": null
-          }
-        ]
-      }
-    ]
-  }
-]
-```
-
-Categories are nested three levels deep. Each node has:
-- `name`: display name
-- `code`: optional category code (present for top-level "aisle" categories)
-- `appContent`: optional promotional content (panel with title, image, product)
-- `children`: subcategories (same structure)
+Same category tree format as Pak'nSave.
 
 ### 5.5 `GET /mobile/v1/products/category` (Browse by category path)
 
 Returns products for a specific category path within a store.
 
-**HTTP 200** — requires auth headers.
-
-#### Path parameters
-
-| Parameter | Type |
-|-----------|------|
-| `banner` | `string` |
-| `storeId` | `string` (UUID) |
-
-#### Query parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `cat0` | `string` | Top-level category name |
-| `cat1` | `string` | Second-level category name (optional) |
-| `cat2` | `string` | Third-level category name (optional) |
-| `sortOrder` | `string` | Sort order |
-
-#### Response structure
-
-Same product array format as search/specials.
+Same parameters and response format as Pak'nSave.
 
 ---
 
-## 6. Endpoints That Do NOT Work (Web CommonApi)
+## 6. Endpoints That Do NOT Work (New World Edge API)
 
-The Pak'nSave website at `www.paknsave.co.nz` exposes legacy `CommonApi` endpoints.
-These are **website-only** endpoints that require session cookies and expose different
-data than the mobile API. They are documented here for completeness but **not used**
-by this project.
+The New World website at `www.newworld.co.nz` exposes an Edge API at
+`api-prod.newworld.co.nz`. This API requires JWT bearer token authentication
+that cannot be obtained without proper credentials.
 
-| Endpoint | Method | Notes |
-|----------|--------|-------|
-| `/CommonApi/Store/GetStoreList` | POST | Returns store list with basic info |
-| `/CommonApi/Store/ChangeStore?storeId={id}&clickSource=list` | POST | Sets store session cookie |
-| `/CommonApi/Navigation/MegaMenu?v=&storeId={id}` | GET | Category navigation tree |
-| `/CommonApi/Cart/Index` | GET | Cart state (requires authenticated session) |
-| `/CommonApi/Product/GetBannerAd` | POST | Banner advertisements |
-| `/CommonApi/Checkout/GetPreviousProductPurchases` | GET | Previous purchases |
-| `/CommonApi/Checkout/GetAisleOfValueProducts` | GET | Aisle-of-value deals |
-| `/CommonApi/Delivery/GetStoreCollectionPoints?id={id}` | GET | Collection point details |
-| `/CommonApi/ShoppingLists/GetLists` | GET | Shopping lists |
+| Endpoint | Method | Status |
+|----------|--------|--------|
+| `https://api-prod.newworld.co.nz/v1/edge/store/physical` | GET | **401** — `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)` |
 
 **Why the mobile API is preferred:**
 
-1. **No session cookies required** — mobile API uses simple bearer token
-2. **Consistent JSON format** — CommonApi responses vary by endpoint
+1. **No JWT auth required** — mobile API uses simple guest token (banner-based)
+2. **Same data coverage** — all 149 New World stores with coordinates and IDs
 3. **Per-store pricing** — mobile API returns prices per-store natively
 4. **More data per product** — mobile API returns `productImageUrls`, `unitPrice`,
    `algoliaAnalytics`, `brand`, `availableInOnline`, flag fields
+
+The Edge API was tested with various header combinations (`x-requested-with`,
+`x-api-key`, `referer`, `accept`) — all failed with 401. It requires a JWT token
+that is only available through authenticated sessions (user login).
 
 ---
 
@@ -608,16 +537,17 @@ by this project.
 
 ### 7.1 How It Works
 
-The Pak'nSave mobile API provides **true per-store pricing**. Each store has its own
+The New World mobile API provides **true per-store pricing**. Each store has its own
 price list for every product identified by its unique `productId`. When you search
 for "beef mince" at store A vs store B, the prices returned are that store's current
 prices.
 
 This is in contrast to the Woolworths API, which requires cookie injection for
-per-store pricing — Pak'nSave encodes the store context directly in the URL path:
+per-store pricing — New World (like Pak'nSave) encodes the store context directly
+in the URL path:
 
 ```
-POST /mobile/ecomm-products/PNS/{storeId}/search?q=beef+mince
+POST /mobile/ecomm-products/MNW/{storeId}/search?q=beef+mince
 ```
 
 No special headers, cookies, or session setup beyond the bearer token is needed.
@@ -625,16 +555,22 @@ No special headers, cookies, or session setup beyond the bearer token is needed.
 ### 7.2 Observed Price Variation
 
 Price differences between nearby stores are common. For example, a search for
-"standard milk" across Botany, Ormiston, and Highland Park Pak'nSave stores showed:
+"spaghetti bolognese" ingredients across 13 Auckland stores showed:
 
-| Store | Milk 3L Price |
-|-------|--------------|
-| Botany | $7.25 |
-| Ormiston | $6.78 |
-| Highland Park | $7.25 |
+| Store | Total Cost | Distance |
+|-------|-----------|----------|
+| New World Shore City | $23.53 | 7.4 km |
+| New World Metro Auckland | $49.13 | 0.9 km |
+| New World Newmarket | $63.63 | 2.3 km |
+| New World Milford | $63.63 | 9.1 km |
+| New World Birkenhead | $78.03 | 6.6 km |
+| New World Stonefields | $86.63 | 7.3 km |
 
-Differences of $0.10-$0.50 per item between nearby stores are typical. Distant
-stores (e.g., Auckland vs Christchurch) can show larger differences.
+Differences of $0.10-$0.50 per item between nearby stores are typical. For example:
+- Beef mince: $9.49 (Shore City) vs $26.99 (Metro Auckland)
+- Garlic: $4.49 (Shore City) vs $52.99 (Stonefields)
+
+**Note: this simple calculation has differences due to per-store availibility rather than per-store pricing.**
 
 ### 7.3 Why This Matters
 
@@ -648,44 +584,48 @@ this comparison would be meaningless.
 
 ### 8.1 Primary: Mobile API (`GET /mobile/store/physical`)
 
-60 stores with precise coordinates. This is the most accurate source.
+149 stores with precise coordinates. This is the most accurate source and provides
+all data needed for the optimizer (store_id, name, address, lat/lon, banner,
+clickAndCollect, delivery).
 
 ```python
-api = PaknSaveAPI()
+api = NewWorldAPI()
 api_stores = api.get_stores()  # returns {id: store_dict}
 ```
 
-### 8.2 CSV Fallback (`data/paknsave_stores.csv`)
+### 8.2 CSV (`data/newworld_stores.csv`)
 
-Pre-built from the Pak'nSave `/store-finder` page's `__NEXT_DATA__` during the
-`fetch_stores.py` build step. Contains the same `store_id` UUIDs with name, address,
-city, region, lat, lon for all 60 stores.
-
-```csv
-store_id,name,address,city,region,latitude,longitude
-65defcf2-...,PAK'nSAVE Albany,33 Don McKinnon Drive...,Albany,NI,-36.738224,174.712257
-```
-
-### 8.3 Store Slugs (`data/paknsave_store_slugs.csv`)
-
-Maps URL-friendly slugs to store UUIDs for 60 stores:
+Pre-built from the mobile API + store-finder page, containing the same `store_id`
+UUIDs with name, address, lat, lon, url, and service flags for all 149 stores.
 
 ```csv
-slug,store_id,uid,url
-albany,65defcf2-...,bltf659232653b357e6,/upper-north-island/auckland/albany
+store_id,name,url,address,latitude,longitude,banner,click_and_collect,delivery
+773ad0a0-...,New World Albany,/upper-north-island/auckland/albany,"219 Don McKinnon Drive...",-36.728207,174.710519,MNW,True,True
 ```
 
-### 8.4 Build Pipeline (`scripts/paknsave/fetch_stores.py`)
+### 8.3 Store URLs from Store-Finder Page
+
+The store-finder page at `https://www.newworld.co.nz/store-finder` provides URL
+slugs for 150 stores (142 match the API). The `__NEXT_DATA__` JSON path is:
+
+```
+data.props.pageProps.page.page_content.content_blocks[1].store_finder.regionStoreGroupings
+```
+
+→ `northIsland`/`southIsland` → `groups` → `stores` → each with `title`, `url`, `address`
+
+### 8.4 Build Pipeline (`scripts/newworld/fetch_stores.py`)
 
 ```
 fetch_stores.py
-  → GET /store-finder → parse __NEXT_DATA__
-  → Extract contentstackStores: url → store_id (GUID) map
-  → Extract store_finder.regionStoreGroupings: title, address, lat/lon per store
-  → Join on url field → DataFrame → data/paknsave_stores.csv
+  → POST /mobile/user/login/guest (banner: "MNW")
+  → GET /mobile/store/physical → 149 stores with UUID, name, address, lat/lon, banner
+  → GET https://www.newworld.co.nz/store-finder → parse __NEXT_DATA__
+  → Extract store_finder.regionStoreGroupings: title, url, address per store
+  → Join on name (strip "New World " prefix) → DataFrame → data/newworld_stores.csv
 ```
 
-No geocoding required — coordinates are provided directly in the page source.
+No geocoding required — coordinates are provided directly by the mobile API.
 
 ---
 
@@ -703,7 +643,7 @@ DATA_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, '..', '..', 'data'))
 
 BASE = "https://api-prod.prod.fsniwaikato.kiwi/prod"
 
-class PaknSaveAPI:
+class NewWorldAPI:
     def __init__(self):
         self.scraper = cloudscraper.create_scraper()
         self._token = None
@@ -713,22 +653,22 @@ class PaknSaveAPI:
             return
         r = self.scraper.post(
             f"{BASE}/mobile/user/login/guest",
-            json={"banner": "PNS"},
-            headers={"User-Agent": "PAKnSAVEApp/4.32.0", "Content-Type": "application/json"},
+            json={"banner": "MNW"},
+            headers={"User-Agent": "NewWorldApp/4.32.0", "Content-Type": "application/json"},
         )
         r.raise_for_status()
         self._token = r.json()["access_token"]
         self._auth = {
             "Authorization": f"Bearer {self._token}",
             "access_token": self._token,
-            "User-Agent": "PAKnSAVEApp/4.32.0",
+            "User-Agent": "NewWorldApp/4.32.0",
             "Content-Type": "application/json",
         }
 
     def search_products(self, store_id: str, query: str):
         self._ensure_token()
         r = self.scraper.post(
-            f"{BASE}/mobile/ecomm-products/PNS/{store_id}/search?q={query}",
+            f"{BASE}/mobile/ecomm-products/MNW/{store_id}/search?q={query}",
             headers=self._auth, json=[],
         )
         if r.status_code == 200:
@@ -739,7 +679,7 @@ class PaknSaveAPI:
         self._ensure_token()
         r = self.scraper.get(f"{BASE}/mobile/store/physical", headers=self._auth)
         if r.status_code == 200:
-            return {s["id"]: s for s in r.json()["stores"]}
+            return {s["id"]: s for s in r.json()["stores"] if s.get("banner") == "MNW"}
         return {}
 ```
 
@@ -750,7 +690,7 @@ import pandas as pd
 import requests
 
 # Load store data
-stores_csv = pd.read_csv(os.path.join(DATA_DIR, "paknsave_stores.csv"))
+stores_csv = pd.read_csv(os.path.join(DATA_DIR, "newworld_stores.csv"))
 
 # Geocode user address via Nominatim
 def geocode(address):
@@ -802,7 +742,7 @@ def search_ingredient(api, store_id, ingredient):
     }
 
 # Full pipeline
-api = PaknSaveAPI()
+api = NewWorldAPI()
 user_lat, user_lon = geocode("123 Queen Street, Auckland CBD, 1010")
 nearby = find_nearby(user_lat, user_lon, radius_km=5)
 
@@ -831,13 +771,13 @@ parsing.
 ### 9.4 Architecture Diagram
 
 ```
-paknsave_stores.csv  (60 stores with UUID, name, lat, lon)
+newworld_stores.csv  (149 stores with UUID, name, lat, lon)
   |
   +---> haversine filter (user address → lat/lon → nearby stores within 5 km)
   |
   v
 FOR EACH nearby store:
-  1. PaknSaveAPI().search_products(store_id, ingredient)
+  1. NewWorldAPI().search_products(store_id, ingredient)
   2. products[0]["price"] / 100  →  price in dollars
   3. Sum across all ingredients
   |
@@ -873,16 +813,15 @@ Compare totals → cheapest store
 | tomato pasta | pasta, canned tomatoes, garlic, olive oil, mixed herbs, cheese |
 | chicken katsu | chicken breast, flour, eggs, bread, rice, katsu sauce |
 
-Dishes are defined in `DISH_INGREDIENTS` in `scripts/paknsave/PaknSave_prototype.py`
-and the Pak'nSave notebook (cell 4). Unknown dish names fall through — the dish name
-itself becomes the single search query.
+Dishes are defined in `DISH_INGREDIENTS` in `scripts/newworld/NewWorld_prototype.py`.
+Unknown dish names fall through — the dish name itself becomes the single search query.
 
 ---
 
 ## 11. CLI Usage
 
 ```powershell
-python scripts/paknsave/PaknSave_prototype.py "123 Queen Street, Auckland CBD, 1010" "spaghetti bolognese"
+python scripts/newworld/NewWorld_prototype.py "123 Queen Street, Auckland CBD, 1010" "spaghetti bolognese"
 ```
 
 | Argument | Default | Description |
@@ -900,7 +839,7 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 |-----------|-------------------|--------|
 | Guest authentication | [OK] Yes | `POST /mobile/user/login/guest` |
 | Token refresh | [OK] Yes | `POST /mobile/v1/users/login/refreshtoken` |
-| List all physical stores (60) | [OK] Yes | `GET /mobile/store/physical` |
+| List all physical stores (149) | [OK] Yes | `GET /mobile/store/physical` |
 | Search products by keyword | [OK] Yes (per-store) | `POST .../search?q=<term>` |
 | Browse products by category | [OK] Yes | `GET /mobile/v1/products/category` |
 | Get store specials | [OK] Yes | `POST .../specials` |
@@ -911,6 +850,7 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 | Get hierarchical category tree | [OK] Yes | `GET /mobile/v1/products/category?storeId=...` |
 | App upgrade check | [OK] Yes | `POST /mobile/v1/upgrade` |
 | Error code lookup | [OK] Yes | `GET /mobile/v1/error` |
+| New World Edge API | [FAIL] JWT required | `https://api-prod.newworld.co.nz/v1/edge/store/physical` |
 
 ---
 
@@ -931,35 +871,46 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
    sessions are needed. The store ID is in the URL path.
 7. **`cloudscraper` is NOT required for the API domain** — The mobile API domain
    (`api-prod.prod.fsniwaikato.kiwi`) has no Cloudflare protection. However, the
-   website domain (`www.paknsave.co.nz`) does. The project uses `cloudscraper` for
+   website domain (`www.newworld.co.nz`) does. The project uses `cloudscraper` for
    consistency.
 8. **The OpenAPI spec is not fully accurate** — `GET /mobile/store/physical` returns
    `{"stores": [...]}` not a bare array as the spec suggests. Actual response shapes
    were verified against live API calls.
 9. **Nominatim rate limit: 1 req/sec** — Geocoding is done through Nominatim
    (OpenStreetMap) with a 1 request per second rate limit.
-10. **Store names from web vs API** — The CSV store names (`paknsave_stores.csv`)
-    may differ slightly from the API's store names (e.g., `"PAK'nSAVE Albany"`
-    vs `"PAK'nSAVE Albany"` — casing and punctuation differences). The API names
-    are authoritative.
-11. **60 stores total** — All Pak'nSave North Island and South Island locations.
-    UUID format `store_id` strings are consistent across API and web data sources.
+10. **Store names from web vs API** — The CSV store names may differ slightly from
+    the API's store names (e.g., `"New World Albany"` vs `"New World Albany"` —
+    casing and prefix differences). The API names are authoritative.
+11. **149 stores total** — All New World stores nationwide. UUID format `store_id`
+    strings are consistent across API and web data sources.
+12. **New World Edge API requires JWT** — The `api-prod.newworld.co.nz/v1/edge/store/physical`
+    endpoint returns 401 with JWT verification error. Not usable without proper auth.
+13. **User-Agent must match banner** — Use `NewWorldApp/4.32.0` for New World
+    (`banner: "MNW"`), not `PAKnSAVEApp/4.32.0`.
+14. **7 stores missing URLs** — After merging mobile API data with store-finder page
+    data, 7 stores have no URL match due to name mismatches (e.g., "Metro Auckland"
+    vs "Metro Queen Street", macron differences for Tūrangi/Wanaka). URLs are only
+    used for linking to the website, not for the API-based optimizer.
+15. **1 store discrepancy** — The store-finder page has 150 stores; the mobile API
+    returns 149. "Foodie Mart" (Mangere) appears in the API but not on the page.
 
 ---
 
-## 14. Comparison: Pak'nSave vs Woolworths API
+## 14. Comparison: New World vs Pak'nSave vs Woolworths
 
-| Feature | Pak'nSave | Woolworths |
-|---------|-----------|------------|
-| Auth | Bearer token (guest login) | Session cookies (no login) |
-| Token/ session expiry | 30 min (auto-refreshable) | Indefinite (observed weeks) |
-| Per-store pricing | Native (store ID in URL) | Cookie injection (`cw-lrkswrdjp`) |
-| Fresh session per store | Not required | Required (server resets cookies) |
-| Product search | `POST` with JSON body | `GET` with query params |
-| Prices in | Cents (integer) | Dollars (float) |
-| Cloudflare | API domain: none, Website: Cloudflare | No Cloudflare on API |
-| Store count | 60 | 183 (Woolworths NZ) |
-| Auth complexity | Low (2 POST calls) | Medium (cookie construction) |
+| Feature | New World | Pak'nSave | Woolworths |
+|---------|-----------|-----------|------------|
+| Auth | Bearer token (guest login) | Bearer token (guest login) | Session cookies (no login) |
+| Token/ session expiry | 30 min (auto-refreshable) | 30 min (auto-refreshable) | Indefinite (observed weeks) |
+| Per-store pricing | Native (store ID in URL) | Native (store ID in URL) | Cookie injection (`cw-lrkswrdjp`) |
+| Fresh session per store | Not required | Not required | Required (server resets cookies) |
+| Product search | `POST` with JSON body | `POST` with JSON body | `GET` with query params |
+| Prices in | Cents (integer) | Cents (integer) | Dollars (float) |
+| Cloudflare | API domain: none, Website: Cloudflare | API domain: none, Website: Cloudflare | No Cloudflare on API |
+| Store count | 149 | 60 | 183 (Woolworths NZ) |
+| Auth complexity | Low (2 POST calls) | Low (2 POST calls) | Medium (cookie construction) |
+| Banner value | `"MNW"` | `"PNS"` | N/A |
+| User-Agent | `NewWorldApp/4.32.0` | `PAKnSAVEApp/4.32.0` | N/A |
 
 ---
 
@@ -967,9 +918,9 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/paknsave/PaknSave_prototype.py` | CLI entry point: geocode, nearby stores, per-store search, cost comparison |
-| `scripts/paknsave/fetch_stores.py` | One-shot data builder: extracts store data from `/store-finder` page `__NEXT_DATA__` |
-| `notebooks/PaknSave_meal_cost_optimizer.ipynb` | Jupyter notebook: 8 cells with step-by-step optimizer |
+| `scripts/newworld/NewWorld_prototype.py` | CLI entry point: geocode, nearby stores, per-store search, cost comparison |
+| `scripts/newworld/fetch_stores.py` | One-shot data builder: fetches stores from mobile API + store-finder page URLs |
+| `scripts/paknsave/fetch_stores.py` | Reference: Pak'nSave store data builder (same API pattern) |
 
 ---
 
@@ -977,15 +928,13 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 
 | File | Purpose |
 |------|---------|
-| `PaknSave_API.md` | This document |
+| `NewWorld_API.md` | This document |
 | `AGENTS.md` | Project overview, file structure, key gotchas |
 | `design.md` | Technical design (API, auth, pipeline for both chains) |
-| `data/paknsave_stores.csv` | 60 stores: store_id (UUID), name, address, city, region, lat, lon |
-| `data/paknsave_store_slugs.csv` | Slug → store_id mapping (albany → 65defcf2-...) |
-| `data/latest_results.csv` | Last optimizer output |
-| `scripts/paknsave/PaknSave_prototype.py` | CLI optimizer with `PaknSaveAPI` class, `DISH_INGREDIENTS`, geocoding, haversine |
-| `scripts/paknsave/fetch_stores.py` | Store data builder from `/store-finder` page |
-| `notebooks/PaknSave_meal_cost_optimizer.ipynb` | Jupyter notebook with full Pak'nSave optimizer (8 cells) |
+| `data/newworld_stores.csv` | 149 stores: store_id (UUID), name, url, address, latitude, longitude, banner, click_and_collect, delivery |
+| `scripts/newworld/NewWorld_prototype.py` | CLI optimizer with `NewWorldAPI` class, `DISH_INGREDIENTS`, geocoding, haversine |
+| `scripts/newworld/fetch_stores.py` | Store data builder from mobile API + store-finder page |
+| `PaknSave_API.md` | Full Pak'nSave API documentation (identical structure) |
 
 ---
 

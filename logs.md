@@ -326,4 +326,98 @@ See `scripts/newworld/Exploration/edge_api_relevance_exploration.py` (comprehens
 
 **Scripts**: `edge_api_relevance_exploration.py`, `test_milk_metro_relevance.py`, `edge_optimizer_demo.py`
 
+## 30. Pak'nSave Edge API — Store Listing Works with Website JWT
+
+**Symptom**: Needed to determine if the Pak'nSave Edge API (`api-prod.paknsave.co.nz`) follows the same pattern as New World Edge API for the two-pass pipeline.
+
+**Discovery**: The Pak'nSave website at `www.paknsave.co.nz` exposes the same Edge API architecture as New World:
+- `GET https://api-prod.paknsave.co.nz/v1/edge/store` returns **57 stores** with full metadata (HTTP 200)
+- Website JWT obtained via `GET https://www.paknsave.co.nz` → `POST /api/user/get-current-user` → `fs-user-token` cookie
+- Same IdP (`online-customer`) as New World and mobile API
+- Store context cookies: `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
+
+**Result**: The Edge API is viable for Pak'nSave — same authentication flow, same endpoint patterns.
+
+**Exploration**: F12 Network sources inspected locally via browser developer tools. Found in get-current-user and store api endpoints.
+
+## 31. Pak'nSave Edge API — Algolia Indices Have Relevance Matching
+
+**Symptom**: Needed to confirm that `_highlightResult.matchedWords` exists in Pak'nSave Algolia indices for the two-pass pipeline.
+
+**Discovery**: Unlike New World (where only `products-index` has relevance), **ALL THREE working Pak'nSave indices have `_highlightResult.matchedWords` populated**:
+- `products-index` [OK] — Relevance sorted, HAS `matchedWords`
+- `products-index-popularity-asc` [OK] — Popularity sorted, HAS `matchedWords`
+- `products-index-popularity-desc` [OK] — Popularity sorted, HAS `matchedWords`
+
+All other indices (`price-asc`, `price-desc`, `relevance`, `name-asc`, `name-desc`, `newest`, `bestselling`, `trending`) return 404.
+
+**Key Insight**: The default `products-index` is still recommended for the two-pass pipeline because it's relevance-sorted (most relevant first), which is optimal for ingredient search.
+
+**Exploration**: `scripts/paknsave/Exploration/products-index-popularity-asc`, `products`
+
+## 32. Pak'nSave Edge API — Two-Pass Pipeline Works End-to-End
+
+**Symptom**: Needed to confirm the complete two-pass pipeline works for Pak'nSave with the same Algolia filter syntax as New World.
+
+**Discovery**: The full two-pass pipeline works identically to New World:
+- **PASS 1**: `POST /v1/edge/search/products/query/index/products-index` with `{"algoliaQuery": {"query": "beef mince"}, "page": 0, "hitsPerPage": 20, "storeId": "..."}`
+  - Returns 40 hits with `_highlightResult.matchedWords` showing which fields matched
+  - Category fields (`category1`, `category2`, `category3`) available for filtering
+  
+- **PASS 2**: `POST /v1/edge/search/paginated/products` with Algolia `filters` parameter
+  - `filters: "productID:5104350-KGM-000 OR productID:5101189-KGM-000 ..."`
+  - Returns `singlePrice.price` (cents) + `promotions[].rewardValue` (promo cents)
+  - Sort: `PRICE_ASC` (cheapest at this store)
+
+**Results for "beef mince" at PAK'nSAVE Botany**:
+- Pass 1: 40 hits, 40 with relevance matches
+- Pass 2: 8 products with per-store pricing: $1.99 (sauce) → $26.99 (premium mince)
+
+**Pet Food Filtering**: Category-based filtering via `category1` field:
+- Exclude: `{"Dog", "Cat", "Pet"}`
+- Example: "Indulge Beef Mince In Gravy Dog Food" has `category1: ["Dog"]` — filtered out
+
+**Scripts**: `scripts/paknsave/Exploration/demo_two_pass_pipeline.py`, `test_two_pass_optimizer.py`
+
+## 33. Pak'nSave Edge API — Pet Food Filtering via Category
+
+**Symptom**: The two-pass pipeline returned pet food items (dog food, cat food) for queries like "beef mince" because the relevance search matched on product names containing "beef mince".
+
+**Discovery**: The Algolia index returns `category1` field for each hit, which can be used to filter out pet food:
+- `category1: ["Dog"]` — dog food
+- `category1: ["Cat"]` — cat food
+- `category1: ["Pet"]` — general pet products
+- `category1: ["Beef", "Mince, Sausages & Meatballs"]` — human food [OK]
+
+**Resolution**: In Pass 1, filter out hits where `category1` contains any of `{"Dog", "Cat", "Pet"}`. This reduces relevance results from 40 to ~37 for "beef mince" but removes all pet food items.
+
+**Before filtering**:
+```
+5104350-KGM-000 - NZ Beef Mince (human food)
+5333649-EA-000 - Indulge Beef Mince In Gravy Dog Food (pet food - excluded)
+5289585-EA-000 - Mince With Beef In Gravy Cat Food (pet food - excluded)
+```
+
+**After filtering**:
+```
+5104350-KGM-000 - NZ Beef Mince (human food - included)
+5101189-KGM-000 - NZ Premium Beef Mince (human food - included)
+5040757-EA-000 - Angus Beef Mince (human food - included)
+```
+
+**Implemented in**: `scripts/paknsave/Exploration/test_two_pass_optimizer.py`, `demo_two_pass_pipeline.py`
+
+## 34. Pak'nSave Edge API — 3 Missing Stores Identified
+
+**Symptom**: Edge API returns 57 stores while mobile API returns 60 stores. Need to identify which stores are missing.
+
+**Discovery**: The 3 missing stores are:
+- **Wairau Road** (Glenfield, Auckland) — Store ID: `002b83de-b79d-4228-a787-bd0765b6cb56`
+- **Gisborne City** (Gisborne) — Store ID: `26c9c8bd-b7d8-4551-9fb0-350b829740a1`
+- **Levin** (Levin) — Store ID: `90302a32-84f3-492a-8c9a-10f5242c0448`
+
+**Verification**: All 3 stores return 0 products in Pass 2 (per-store pricing) despite having relevance matches in Pass 1. This confirms these stores are not configured for online ordering via the Edge API.
+
+**Resolution**: Use Edge API store listing as primary source (57 stores). Mobile API can be used as fallback if more stores are needed.
+
 (End of file)

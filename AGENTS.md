@@ -37,7 +37,8 @@ opencode/
 │   ├── paknsave/
 │   │   ├── fetch_stores.py                     # One-shot: builds paknsave_stores.csv from __NEXT_DATA__
 │   │   ├── PaknSave_prototype.py               # CLI: python scripts/paknsave/PaknSave_prototype.py "address" "dish"
-│   │   └── Exploration.md                    # Breakdown of exploration scripts (if any).
+│   │   └── Exploration/                        # Edge API exploration: two-pass pipeline, relevance matching, per-store pricing. Full tree contents shortened.
+│   │       └── Exploration.md                  # Complete exploration documentation (all phases + discoveries)
 │   └── woolworths/
 │       ├── woolworths_api.py                   # Cookie-based API module: session, store context, product search
 │       ├── woolworths_optimizer.py             # API-based optimizer: geocode, stores, pricing, cost comparison
@@ -65,11 +66,14 @@ opencode/
 | File | Purpose |
 |---|---|
 | `NewWorld_API.md` | Foodstuffs mobile API documentation for New World (banner: MNW). Full endpoint reference with auth flow, per-store pricing, architecture, comparison vs Pak'nSave/Woolworths. Credits [Arefu](https://github.com/Arefu) (OpenAPI YAML in their [PaknSave repo](https://github.com/Arefu/PaknSave)). |
-| `PaknSave_API.md` | Foodstuffs mobile API documentation. Full endpoint reference with auth flow, per-store pricing, architecture, comparison vs Woolworths. Credits [Arefu](https://github.com/Arefu) (OpenAPI YAML in their [PaknSave repo](https://github.com/Arefu/PaknSave)). |
+| `PaknSave_API.md` | Foodstuffs mobile API documentation. Full endpoint reference with auth flow, per-store pricing, architecture, comparison vs Woolworths. Includes Edge API two-pass pipeline documentation. Credits [Arefu](https://github.com/Arefu) (OpenAPI YAML in their [PaknSave repo](https://github.com/Arefu/PaknSave)). |
 | `scripts/newworld/NewWorld_prototype.py` | CLI entry point. Contains `NewWorldAPI` class, `DISH_INGREDIENTS` map (21 dishes), geocoding, haversine, store search, price comparison. Uses `banner: "MNW"` and `User-Agent: NewWorldApp/4.32.0`. |
 | `scripts/newworld/fetch_stores.py` | Data builder. Fetches 149 New World stores from mobile API (coordinates, store IDs, banner) and store-finder page (URL slugs). Saves to `data/newworld_stores.csv`. |
 | `scripts/paknsave/PaknSave_prototype.py` | CLI entry point. Contains `PaknSaveAPI` class, `DISH_INGREDIENTS` map (21 dishes), geocoding, haversine, store search, price comparison. |
 | `scripts/paknsave/fetch_stores.py` | Data builder. Scrapes `__NEXT_DATA__` for store GUIDs, store-finder HTML for names/addresses, geocodes via Nominatim. Run once or to refresh. |
+| `scripts/paknsave/Exploration/demo_two_pass_pipeline.py` | **Edge API two-pass optimizer**: Full pipeline with relevance matching (products-index), per-store pricing (paginated/products), pet food filtering (category1), promotional prices. |
+| `scripts/paknsave/Exploration/test_two_pass_optimizer.py` | **Edge API two-pass CLI**: CLI wrapper for two-pass optimizer with geocoding, store filtering, 21 dishes, cost comparison. |
+| `scripts/paknsave/Exploration/Exploration.md` | **Edge API exploration documentation**: All phases, discoveries, and breakthroughs for Pak'nSave Edge API two-pass pipeline. |
 | `scripts/woolworths/woolworths_api.py` | Cookie-based Woolworths API module. `create_session()`, `set_store_context()`, `search_products()`, `find_cheapest()`, `get_nearby_stores()`, `geocode()`. Constructs `cw-lrkswrdjp` cookie from `extra1` in store data — no Playwright needed at runtime. |
 | `scripts/woolworths/woolworths_optimizer.py` | API-based optimizer. Geocodes address, finds nearby stores, searches each ingredient at each store via API with per-store pricing, compares totals. 21 dishes supported. |
 | `scripts/woolworths/woolworths_scrape.py` | Playwright headed scraper for search results (name, unit cost, actual price). Legacy — replaced by API-based approach. |
@@ -90,6 +94,8 @@ opencode/
 - Prices from the Pak'nSave API are in **cents** — divide by 100 for dollars.
 - `PaknSaveAPI.get_stores()` returns `{"stores": [...]}`, not a bare list.
 - Nominatim geocoding rate limit: 1 req/sec.
+- **Edge API two-pass pipeline**: Uses website JWT (`fs-user-token` cookie) for auth — works.
+- **Edge API pet food filtering**: Filter by `category1` to exclude `{"Dog", "Cat", "Pet"}` categories in Pass 1.
 
 ### New World
 - Uses the same Foodstuffs mobile API as Pak'nSave with `banner: "MNW"` and `User-Agent: NewWorldApp/4.32.0`.
@@ -164,6 +170,35 @@ opencode/
 - **Full API documentation**: `NewWorld_API.md` covers all endpoints, auth flow, per-store pricing, two-pass pipeline, and production usage.
 - **`NewWorld_prototype.py` built and tested**: End-to-end pipeline working — geocode address, find nearby stores, search products, compare costs. 21 dishes supported.
 - **Two-pass pipeline implementation**: `scripts/newworld/Exploration/explore_edge_api9_relevance.py` (comprehensive), `test_milk_metro_relevance.py` (focused test), `demo_edge_optimizer.py` (full optimizer demo).
+
+## Pak'nSave Research Status
+
+- **Per-store pricing CONFIRMED**: Native per-store pricing via store ID in URL path — no cookie tricks needed. Different stores return different prices.
+- **Mobile API working**: `api-prod.prod.fsniwaikato.kiwi/prod` with `banner: "PNS"` and `User-Agent: PAKnSAVEApp/4.32.0` returns 60 stores with coordinates and store IDs.
+- **Pak'nSave Edge API — TWO-PASS PIPELINE WORKS**:
+  - Same architecture as New World Edge API (identical Foodstuffs backend)
+  
+  **PASS 1 — Relevance Matching (Algolia Index):**
+  - `POST /v1/edge/search/products/query/index/products-index` (DEFAULT Algolia index)
+  - Returns hits with `_highlightResult.matchedWords` — explicit relevance matching!
+  - **Key Difference from New World**: ALL three working indices have `matchedWords` populated (not just the default)
+  
+  **PASS 2 — Per-Store Pricing (Paginated Endpoint with Filters):**
+  - `POST /v1/edge/search/paginated/products` with Algolia `filters` parameter
+  - Same syntax as New World: `productID:xxx OR productID:yyy`
+  - Returns `singlePrice.price` (cents) + `promotions[].rewardValue` (promo cents)
+  - Sort: `PRICE_ASC`, `PRICE_DESC`
+  - Store context via cookies: `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
+  
+  **Pet Food Filtering**: Filter by `category1` to exclude `{"Dog", "Cat", "Pet"}` categories in Pass 1. Critical for queries like "beef mince" which return pet food items.
+  
+- **Store listing**: `GET /v1/edge/store` — 57 stores (HTTP 200) — 3 fewer than mobile API's 60. Missing stores: Wairau Road (Glenfield), Gisborne City, Levin (not configured for Edge API ordering).
+- **Auth**: Website JWT (from `POST /api/user/get-current-user` → `fs-user-token` cookie) OR mobile API token
+- **Store context**: Cookies `eCom_STORE_ID`, `STORE_ID_V2`, `Region` (NI or SI for South Island)
+- **Sort**: `PRICE_ASC`, `PRICE_DESC`
+- **Edge API can fully replace mobile API** — no dependency on Foodstuffs mobile endpoint
+- **Full API documentation**: `PaknSave_API.md` section 6 covers all endpoints, auth flow, per-store pricing, two-pass pipeline, and production usage.
+- **Two-pass pipeline implementation**: `scripts/paknsave/Exploration/demo_two_pass_pipeline.py` (full demo), `test_two_pass_optimizer.py` (CLI optimizer), `Exploration.md` (full documentation).
 
 ## NZ Scope
 

@@ -262,3 +262,70 @@ The two-pass pipeline on the Edge API is now the **recommended production archit
 | Visibility into matches | None | Full (see matched fields) |
 
 **Decision**: Use Edge API two-pass pipeline for new development. Keep mobile API as fallback. Update `NewWorld_prototype.py` to use Edge API in next iteration.
+
+## 33. Pak'nSave Edge API Two-Pass Pipeline is the Recommended Production Path
+
+The two-pass pipeline on the Edge API is now the **recommended production architecture** for Pak'nSave, superseding the mobile API approach — identical to New World:
+
+| Aspect | Mobile API | Edge API (Two-Pass) |
+|--------|------------|---------------------|
+| Relevance matching | Implicit (first result) | Explicit `_highlightResult.matchedWords` |
+| Per-store pricing | Native (storeId in URL) | Via cookies + Algolia filters |
+| Price sorting | PriceAsc (limited) | PRICE_ASC, PRICE_DESC |
+| Promotions | Included | Included |
+| Auth | Mobile guest token | Website JWT OR mobile token |
+| Dependency | Internal Foodstuffs API | Public website API (more stable) |
+| Implementation complexity | Low | Medium (two passes) |
+| Visibility into matches | None | Full (see matched fields) |
+| Pet food filtering | Not available | Via `category1` in Pass 1 |
+
+**Decision**: Use Edge API two-pass pipeline for new development. Keep mobile API as fallback. Update `PaknSave_prototype.py` to use Edge API in next iteration.
+
+**Implementation**: `scripts/paknsave/Exploration/demo_two_pass_pipeline.py` (full demo), `test_two_pass_optimizer.py` (CLI optimizer)
+
+## 34. Pet Food Filtering via `category1` Field
+
+The Algolia relevance search returns pet food items (dog food, cat food) for queries like "beef mince" because the product names contain the search terms. The `category1` field in the Pass 1 response allows filtering out these items:
+
+```python
+pet_categories = {"Dog", "Cat", "Pet"}
+product_ids = []
+for hit in hits:
+    hr = hit.get("_highlightResult", {})
+    matched = [f for f, v in hr.items() if isinstance(v, dict) and v.get("matchedWords")]
+    cat1 = hit.get("category1", [])
+    if matched and not any(c in pet_categories for c in cat1):
+        product_ids.append(hit["productID"])
+```
+
+**Decision**: Always filter by `category1` in Pass 1 to exclude pet food. This reduces relevance results but ensures only human food products are passed to Pass 2 for pricing.
+
+**Verified**: Testing "beef mince" at PAK'nSAVE Botany — 40 hits reduced to 37 after filtering. Pet food items ("Indulge Beef Mince In Gravy Dog Food", "Mince With Beef In Gravy Cat Food") successfully excluded.
+
+## 35. Region Cookie for South Island Stores
+
+The `Region` cookie in the Edge API determines which store's price list is returned:
+- `Region: "NI"` — North Island stores
+- `Region: "SI"` — South Island stores
+
+**Decision**: Use `Region: "NI"` for North Island stores (default) and `Region: "SI"` for South Island stores. This is determined by the store's `region` field from the store listing response.
+
+**Note**: The mobile API does not require this cookie — it uses the store ID in the URL path to determine the region automatically. The Edge API requires explicit region context via cookies.
+
+## 36. Edge API Returns 57 Stores vs Mobile API's 60
+
+The Pak'nSave Edge API (`GET /v1/edge/store`) returns 57 stores, while the mobile API (`GET /mobile/store/physical`) returns 60 stores. The 3 missing stores are:
+
+| Store Name | Store ID | City | Region | Coordinates |
+|------------|----------|------|--------|-------------|
+| **Wairau Road** | `002b83de-b79d-4228-a787-bd0765b6cb56` | Glenfield, Auckland | NI | -36.7789, 174.7440 |
+| **Gisborne City** | `26c9c8bd-b7d8-4551-9fb0-350b829740a1` | Gisborne | NI | -38.6642, 178.0210 |
+| **Levin** | `90302a32-84f3-492a-8c9a-10f5242c0448` | Levin | NI | -40.6226, 175.2877 |
+
+**Testing**: All 3 stores return 0 products in Pass 2 (per-store pricing) despite having relevance matches in Pass 1. This confirms these stores are not configured for online ordering via the Edge API.
+
+**Decision**: Use the Edge API store listing as the primary source (57 stores). The mobile API can be used as a fallback if more stores are needed. The 57 stores cover all major Pak'nSave locations nationwide.
+
+**Note**: This is similar to the New World discrepancy (148 Edge API stores vs 149 mobile API stores).
+
+**See also**: Log 34 in logs.md for verification details.

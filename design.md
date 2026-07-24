@@ -75,6 +75,291 @@ fetch_stores.py
 
 No geocoding required — coordinates are provided directly by the page source.
 
+## Pak'nSave Edge API Architecture (Recommended)
+
+### How It Works
+
+```
+User input (address + dish)
+  → Geocode address to lat/lon (Nominatim)
+  → Haversine filter (stores within 5 km from paknsave_stores.csv)
+  → Dish name → ingredient list (DISH_INGREDIENTS map, 21 dishes)
+  → Get website JWT via get-current-user → fs-user-token cookie
+  → FOR EACH nearby store:
+      → FOR EACH ingredient:
+          PASS 1 — Relevance (Algolia products-index):
+            POST /v1/edge/search/products/query/index/products-index
+            Body: {"algoliaQuery": {"query": "beef mince"}, "page": 0, "hitsPerPage": 20, "storeId": "..."}
+            → Extract productIDs where _highlightResult has non-empty matchedWords
+            → Filter by category1 to exclude pet food (Dog, Cat, Pet)
+          
+          PASS 2 — Per-Store Pricing (Paginated with filters):
+            POST /v1/edge/search/paginated/products
+            Body: {"algoliaQuery": {"query": "beef mince", "filters": "productID:xxx OR productID:yyy"}, "sortOrder": "PRICE_ASC"}
+            → Returns singlePrice.price (cents) + promotions[].rewardValue
+            → Sorted by price at THIS store
+  → Aggregate prices, compare totals, display cheapest
+```
+
+### Edge API Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/user/get-current-user` | POST | Get website JWT (fs-user-token cookie) |
+| `/v1/edge/store` | GET | List all 57 stores (needs JWT + Origin headers) |
+| `/v1/edge/search/products/query/index/products-index` | POST | **Relevance search (Algolia)** — Pass 1 |
+| `/v1/edge/search/paginated/products` | POST | **Per-store pricing** — Pass 2 |
+| `/v1/edge/store/{store_id}/categories` | GET | Category tree for store |
+
+### Edge API Auth Flow
+
+1. `GET https://www.paknsave.co.nz` — seed cookies (Cloudflare, session)
+2. `POST https://www.paknsave.co.nz/api/user/get-current-user` — returns `fs-user-token` cookie (JWT)
+3. All subsequent Edge API requests need both headers:
+   - `Authorization: Bearer {token}`
+   - `access_token: {token}`
+4. Plus Origin/Referer headers:
+   - `Origin: https://www.paknsave.co.nz`
+   - `Referer: https://www.paknsave.co.nz/`
+
+### Store Context Cookies
+
+```python
+cookies = {
+    "eCom_STORE_ID": store_id,
+    "STORE_ID_V2": f"{store_id}|False",
+    "Region": "NI"  # or "SI" for South Island
+}
+```
+
+### Two-Pass Pipeline Code
+
+```python
+def two_pass_search(token, store_id, query, max_relevance=20):
+    """
+    Complete two-pass pipeline: Relevance -> Per-Store Pricing
+    """
+    EDGE_BASE = "https://api-prod.paknsave.co.nz/v1/edge"
+    WEB_BASE = "https://www.paknsave.co.nz"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "access_token": token,
+        "Content-Type": "application/json",
+        "Origin": WEB_BASE,
+        "Referer": f"{WEB_BASE}/shop",
+        "User-Agent": "Mozilla/5.0",
+    }
+    cookies = {
+        "eCom_STORE_ID": store_id,
+        "STORE_ID_V2": f"{store_id}|False",
+        "Region": "NI",
+    }
+    
+    # PASS 1: Relevance matching
+    url1 = f"{EDGE_BASE}/search/products/query/index/products-index"
+    payload1 = {
+        "algoliaQuery": {"query": query},
+        "page": 0,
+        "hitsPerPage": max_relevance,
+        "storeId": store_id
+    }
+    r1 = requests.post(url1, headers=headers, json=payload1, cookies=cookies)
+    hits = r1.json().get("hits", [])
+    
+    # Extract productIDs with relevance matches (exclude pet food)
+    pet_categories = {"Dog", "Cat", "Pet"}
+    product_ids = []
+    for hit in hits:
+        hr = hit.get("_highlightResult", {})
+        matched = [f for f, v in hr.items() if isinstance(v, dict) and v.get("matchedWords")]
+        cat1 = hit.get("category1", [])
+        if matched and not any(c in pet_categories for c in cat1):
+            product_ids.append(hit["productID"])
+    
+    # PASS 2: Per-store pricing with Algolia filters
+    url2 = f"{EDGE_BASE}/search/paginated/products"
+    filter_str = " OR ".join([f"productID:{pid}" for pid in product_ids])
+    payload2 = {
+        "algoliaQuery": {"query": query, "filters": filter_str},
+        "page": 0,
+        "hitsPerPage": 50,
+        "storeId": store_id,
+        "sortOrder": "PRICE_ASC"
+    }
+    r2 = requests.post(url2, headers=headers, json=payload2, cookies=cookies)
+    return r2.json().get("products", [])
+```
+
+### Key Constraints
+
+- **Two-pass required**: No single endpoint gives both relevance + per-store pricing
+- **Pet food filtering**: Must filter by `category1` in Pass 1 to exclude Dog/Cat/Pet
+- **Fresh JWT required**: Website JWT expires after ~30 minutes
+- **Region cookie**: Use "NI" for North Island, "SI" for South Island
+- **Prices in cents**: Divide `singlePrice.price` by 100 for dollars
+
+### Edge API vs Mobile API
+
+| Feature | Mobile API | Edge API (Two-Pass) |
+|---------|------------|---------------------|
+| Relevance matching | Implicit (first result) | Explicit `_highlightResult.matchedWords` |
+| Per-store pricing | Native (storeId in URL) | Via cookies + Algolia filters |
+| Price sorting | PriceAsc only | PRICE_ASC, PRICE_DESC |
+| Promotions | Included | Included (`rewardValue`) |
+| Auth | Mobile guest token | Website JWT OR mobile token |
+| Dependency | Internal Foodstuffs API | Public website API (more stable) |
+| Pet food filtering | Not available | Via `category1` in Pass 1 |
+
+## New World Edge API Architecture
+
+### How It Works
+
+```
+User input (address + dish)
+  → Geocode address to lat/lon (Nominatim)
+  → Haversine filter (stores within 5 km from newworld_stores.csv)
+  → Dish name → ingredient list (DISH_INGREDIENTS map, 21 dishes)
+  → Get website JWT via get-current-user → fs-user-token cookie
+  → FOR EACH nearby store:
+      → FOR EACH ingredient:
+          PASS 1 — Relevance (Algolia products-index):
+            POST /v1/edge/search/products/query/index/products-index
+            Body: {"algoliaQuery": {"query": "beef mince"}, "page": 0, "hitsPerPage": 20, "storeId": "..."}
+            → Extract productIDs where _highlightResult has non-empty matchedWords
+            → NO pet food filtering needed (only default index has relevance)
+          
+          PASS 2 — Per-Store Pricing (Paginated with filters):
+            POST /v1/edge/search/paginated/products
+            Body: {"algoliaQuery": {"query": "beef mince", "filters": "productID:xxx OR productID:yyy"}, "sortOrder": "PRICE_ASC"}
+            → Returns singlePrice.price (cents) + promotions[].rewardValue
+            → Sorted by price at THIS store
+  → Aggregate prices, compare totals, display cheapest
+```
+
+### New World Edge API Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/user/get-current-user` | POST | Get website JWT (fs-user-token cookie) |
+| `/v1/edge/store` | GET | List all 148 stores (needs JWT + Origin headers) |
+| `/v1/edge/search/products/query/index/products-index` | POST | **Relevance search (Algolia)** — Pass 1 |
+| `/v1/edge/search/paginated/products` | POST | **Per-store pricing** — Pass 2 |
+| `/v1/edge/store/{store_id}/categories` | GET | Category tree for store |
+
+### New World Edge API Auth Flow
+
+1. `GET https://www.newworld.co.nz` — seed cookies (Cloudflare, session)
+2. `POST https://www.newworld.co.nz/api/user/get-current-user` — returns `fs-user-token` cookie (JWT)
+3. All subsequent Edge API requests need both headers:
+   - `Authorization: Bearer {token}`
+   - `access_token: {token}`
+4. Plus Origin/Referer headers:
+   - `Origin: https://www.newworld.co.nz`
+   - `Referer: https://www.newworld.co.nz/`
+
+### New World Store Context Cookies
+
+```python
+cookies = {
+    "eCom_STORE_ID": store_id,
+    "STORE_ID_V2": f"{store_id}|False",
+    "Region": "NI"  # or "SI" for South Island
+}
+```
+
+### New World Two-Pass Pipeline Code
+
+```python
+def newworld_two_pass_search(token, store_id, query, max_relevance=20):
+    """
+    Complete two-pass pipeline: Relevance -> Per-Store Pricing
+    """
+    EDGE_BASE = "https://api-prod.newworld.co.nz/v1/edge"
+    WEB_BASE = "https://www.newworld.co.nz"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "access_token": token,
+        "Content-Type": "application/json",
+        "Origin": WEB_BASE,
+        "Referer": f"{WEB_BASE}/shop",
+        "User-Agent": "Mozilla/5.0",
+    }
+    cookies = {
+        "eCom_STORE_ID": store_id,
+        "STORE_ID_V2": f"{store_id}|False",
+        "Region": "NI",
+    }
+    
+    # PASS 1: Relevance matching
+    url1 = f"{EDGE_BASE}/search/products/query/index/products-index"
+    payload1 = {
+        "algoliaQuery": {"query": query},
+        "page": 0,
+        "hitsPerPage": max_relevance,
+        "storeId": store_id
+    }
+    r1 = requests.post(url1, headers=headers, json=payload1, cookies=cookies)
+    hits = r1.json().get("hits", [])
+    
+    # Extract productIDs with relevance matches
+    # NOTE: New World only has relevance in default index, no pet food filtering needed
+    product_ids = []
+    for hit in hits:
+        hr = hit.get("_highlightResult", {})
+        if any(isinstance(v, dict) and v.get("matchedWords") for v in hr.values()):
+            product_ids.append(hit["productID"])
+    
+    # PASS 2: Per-store pricing with Algolia filters
+    url2 = f"{EDGE_BASE}/search/paginated/products"
+    filter_str = " OR ".join([f"productID:{pid}" for pid in product_ids])
+    payload2 = {
+        "algoliaQuery": {"query": query, "filters": filter_str},
+        "page": 0,
+        "hitsPerPage": 50,
+        "storeId": store_id,
+        "sortOrder": "PRICE_ASC"
+    }
+    r2 = requests.post(url2, headers=headers, json=payload2, cookies=cookies)
+    return r2.json().get("products", [])
+```
+
+### New World Key Constraints
+
+- **Two-pass required**: No single endpoint gives both relevance + per-store pricing
+- **NO pet food filtering needed**: Only the default `products-index` has relevance matching (unlike Pak'nSave where all 3 indices have matches)
+- **Fresh JWT required**: Website JWT expires after ~30 minutes
+- **Region cookie**: Use "NI" for North Island, "SI" for South Island
+- **Prices in cents**: Divide `singlePrice.price` by 100 for dollars
+- **148 stores vs 149 mobile API**: 1 store missing from Edge API (name mismatch)
+
+### New World Edge API vs Mobile API
+
+| Feature | Mobile API | Edge API (Two-Pass) |
+|---------|------------|---------------------|
+| Relevance matching | Implicit (first result) | Explicit `_highlightResult.matchedWords` |
+| Per-store pricing | Native (storeId in URL) | Via cookies + Algolia filters |
+| Price sorting | PriceAsc only | PRICE_ASC, PRICE_DESC |
+| Promotions | Included | Included (`rewardValue`) |
+| Auth | Mobile guest token | Website JWT OR mobile token |
+| Dependency | Internal Foodstuffs API | Public website API (more stable) |
+| Pet food filtering | Not available | Not needed (only default index has relevance) |
+| Store count | 149 stores | 148 stores (1 missing) |
+
+### New World vs Pak'nSave Edge API
+
+| Feature | New World | Pak'nSave |
+|---------|-----------|-----------|
+| Edge API domain | `api-prod.newworld.co.nz` | `api-prod.paknsave.co.nz` |
+| Website domain | `www.newworld.co.nz` | `www.paknsave.co.nz` |
+| Store count | 148 stores | 57 stores |
+| Pet food filtering | Not needed | Required via `category1` |
+| Relevance indices | Only `products-index` | All 3 indices have matches |
+| Mobile API banner | `MNW` | `PNS` |
+| User-Agent (mobile) | `NewWorldApp/4.32.0` | `PAKnSAVEApp/4.32.0` |
+| Missing stores | 1 (name mismatch) | 3 (not configured for Edge API) |
+
 ## Store Distance
 
 - Haversine formula calculates great-circle distance between user lat/lon and each store's coordinates

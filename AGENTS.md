@@ -126,17 +126,45 @@ opencode/
 - **Per-store pricing CONFIRMED**: Native per-store pricing via store ID in URL path — no cookie tricks needed (unlike Woolworths). Different stores return different prices (e.g., beef mince: $9.49 at Shore City vs $26.99 at Metro Auckland).
 - **Mobile API working**: `api-prod.prod.fsniwaikato.kiwi/prod` with `banner: "MNW"` and `User-Agent: NewWorldApp/4.32.0` returns 149 stores with coordinates and store IDs.
 - **No Nominatim geocoding needed**: All 149 stores have coordinates from the mobile API — eliminates the 22 stores that were missing coordinates via Nominatim.
-- **New World Edge API — FULL product search works**: `api-prod.newworld.co.nz/v1/edge/` provides complete functionality:
-  - Store listing: `GET /v1/edge/store` — 148 stores (HTTP 200)
-  - Product search: `POST /v1/edge/search/paginated/products` — Algolia query format, returns pricing in `singlePrice.price` + `promotions[].rewardValue`
-  - Categories: `GET /v1/edge/store/{id}/categories` — works
-  - Auth: Website JWT (from `POST /api/user/get-current-user` → `fs-user-token` cookie) OR mobile API token
-  - Store context: Cookies `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
-  - Sort: `PRICE_ASC`, `PRICE_DESC`
-  - **Edge API can fully replace mobile API** — no dependency on Foodstuffs mobile endpoint
+- **New World Edge API — TWO-PASS PIPELINE WORKS**:
+  - The Edge API does NOT have a single endpoint with both relevance matching AND per-store pricing. We discovered a **two-pass architecture**:
+  
+  **PASS 1 — Relevance Matching (Algolia Index):**
+  - `POST /v1/edge/search/products/query/index/products-index` (the DEFAULT Algolia index)
+  - Returns hits with `_highlightResult.matchedWords` — explicit relevance matching!
+  - Fields matched: `DisplayName`, `category2AndBrand`, `category1`, `category2`, `brand`, etc.
+  - Sort: Algolia default (relevance)
+  - Price: `averagePrice` (cross-store, not per-store)
+  
+  **PASS 2 — Per-Store Pricing (Paginated Endpoint with Filters):**
+  - `POST /v1/edge/search/paginated/products` with Algolia `filters` parameter
+  - Filter syntax: `productID:xxx OR productID:yyy OR productID:zzz`
+  - Returns `singlePrice.price` (cents) + `promotions[].rewardValue` (promo cents)
+  - Sort: `PRICE_ASC`, `PRICE_DESC` (no RELEVANCE sort available)
+  - Store context via cookies: `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
+  
+  **Algolia Indices Tested (14+):**
+  - `products-index` ✅ 200 — DEFAULT, relevance sorted, HAS `_highlightResult`
+  - `products-index-popularity-asc` ✅ 200 — NO relevance matches, popularity ASC
+  - `products-index-popularity-desc` ✅ 200 — NO relevance matches, popularity DESC
+  - All others (`price-asc`, `price-desc`, `relevance`, `name-asc`, `name-desc`, `newest`, `bestselling`, `trending`) ❌ 404
+  
+  **Key Discovery**: Only the DEFAULT `products-index` has relevance matching via `_highlightResult`. The popularity indices have the field but it's EMPTY.
+  
+  **Bridge**: Pass 1 extracts `productID` from hits with non-empty `matchedWords`. Pass 2 uses Algolia `filters` to get per-store pricing for exactly those relevant products.
+  
+  **Advantage over Mobile API**: Explicit relevance matching (mobile API returns first result but no visibility into WHY it matched). Critical for avoiding pet food matching "beef mince".
+  
+- **Store listing**: `GET /v1/edge/store` — 148 stores (HTTP 200)
+- **Categories**: `GET /v1/edge/store/{id}/categories` — works
+- **Auth**: Website JWT (from `POST /api/user/get-current-user` → `fs-user-token` cookie) OR mobile API token
+- **Store context**: Cookies `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
+- **Sort**: `PRICE_ASC`, `PRICE_DESC`
+- **Edge API can fully replace mobile API** — no dependency on Foodstuffs mobile endpoint
 - **7 stores missing URLs**: Name mismatches between API and store-finder page (e.g., "Metro Auckland" vs "Metro Queen Street", macron differences). URLs are only for website linking, not for the API optimizer.
-- **Full API documentation**: `NewWorld_API.md` covers all endpoints, auth flow, per-store pricing, and production usage.
+- **Full API documentation**: `NewWorld_API.md` covers all endpoints, auth flow, per-store pricing, two-pass pipeline, and production usage.
 - **`NewWorld_prototype.py` built and tested**: End-to-end pipeline working — geocode address, find nearby stores, search products, compare costs. 21 dishes supported.
+- **Two-pass pipeline implementation**: `scripts/newworld/Exploration/edge_api_relevance_exploration.py` (comprehensive), `test_milk_metro_relevance.py` (focused test), `edge_optimizer_demo.py` (full optimizer demo).
 
 ## NZ Scope
 

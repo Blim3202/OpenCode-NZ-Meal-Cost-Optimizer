@@ -125,10 +125,10 @@ The Foodstuffs mobile API (`GET /mobile/store/physical`) returns latitude/longit
 
 The New World Edge API (`api-prod.newworld.co.nz/v1/edge/`) provides **complete functionality** for the meal cost optimizer:
 
-### Store Listing ✅
+### Store Listing
 `GET /v1/edge/store` — Returns 148 stores with full details (id, name, address, coordinates, opening hours).
 
-### Product Search ✅
+### Product Search — Two-Pass Pipeline
 `POST /v1/edge/search/paginated/products` — Algolia-powered search with per-store pricing.
 
 **Authentication**: Accepts JWT from either:
@@ -167,18 +167,68 @@ Region:        NI (or SI)
 - Regular: `singlePrice.price` (cents)
 - Promo: `promotions[].rewardValue` where `bestPromotion: true` (cents)
 
-### Categories ✅
+### Categories
 `GET /v1/edge/store/{store_id}/categories` — Returns category tree.
+
+### Relevance Matching
+**Algolia Index Endpoint**: `POST /v1/edge/search/products/query/index/products-index`
+
+This is the **DEFAULT Algolia index** (relevance-sorted). Returns hits with `_highlightResult` containing `matchedWords` — explicit relevance matching!
+
+```json
+{
+  "algoliaQuery": {"query": "beef mince"},
+  "page": 0,
+  "hitsPerPage": 20,
+  "storeId": "{store_id}"
+}
+```
+
+Response includes `_highlightResult`:
+```json
+{
+  "_highlightResult": {
+    "DisplayName": {"value": "NZ Premium <em>Beef</em> <em>Mince</em>", "matchedWords": ["beef", "mince"]},
+    "category2AndBrand": {"value": "Beef <em>Mince</em> > Premium", "matchedWords": ["beef", "mince"]}
+  }
+}
+```
+
+Only `products-index` (default) has relevance matching. The other two working indices (`products-index-popularity-asc`, `products-index-popularity-desc`) have empty `_highlightResult.matchedWords` — they are for browsing, not search.
+
+### Two-Pass Pipeline
+
+**Problem**: Paginated endpoint has per-store pricing but NO relevance sort. Algolia index has relevance but NO per-store pricing.
+
+**Solution**: Two-pass pipeline using Algolia filter syntax:
+
+```
+PASS 1 (Relevance): POST /search/products/query/index/products-index
+  → Returns hits with _highlightResult.matchedWords
+  → Extract productID where matchedWords not empty
+
+PASS 2 (Pricing): POST /search/paginated/products with filters
+  → Filters: "productID:5101189-KGM-000 OR productID:5104350-KGM-000 ..."
+  → Returns per-store singlePrice.price + promotions[].rewardValue
+  → Sort: PRICE_ASC (cheapest at this store)
+```
+
+**Results for "beef mince" at Metro Auckland**:
+- Pass 1: 40 hits, 40 with relevance matches
+- Pass 2: 3 products with per-store pricing: $9.49, $13.49, $26.99
+
+**Advantage over Mobile API**: Explicit relevance matching via `_highlightResult` (mobile API returns first result but no visibility into WHY it matched). Critical for ingredient search — avoids pet food matching "beef mince".
 
 ### Conclusion
 **The Edge API CAN replace the mobile API** for New World:
-- ✅ No dependency on mobile API endpoint
-- ✅ Works with website JWT (more future-proof)
-- ✅ Algolia search with proper sorting
-- ✅ Per-store pricing via cookies
-- ✅ Promotional pricing included
+- No dependency on mobile API endpoint
+- Works with website JWT (more future-proof, same IdP: `online-customer`)
+- Algolia search with explicit relevance matching + price sorting
+- Per-store pricing via cookies + Algolia filters
+- Promotional pricing included
+- Categories endpoint available for navigation
 
-See `scripts/newworld/Exploration/explore_edge_auth.py` and `edge_full_test.py` for working implementation.
+See `scripts/newworld/Exploration/explore_edge_auth.py`, `edge_full_test.py`, `edge_optimizer_demo.py`, `edge_api_relevance_exploration.py`, `test_milk_metro_relevance.py` for working implementations.
 
 ## 28. New World store-finder page `__NEXT_DATA__` for URL slugs only
 
@@ -195,3 +245,20 @@ The 21 dishes and their ingredient lists are identical between Pak'nSave and New
 ## 31. Playwright not needed for New World at runtime
 
 The Foodstuffs mobile API provides all store data (coordinates, IDs, banner) without any browser automation. Product search will use `GET /mobile/ecomm-products/MNW/{store_id}/search?q={query}` — same pattern as Pak'nSave. No Playwright needed for any New World operation, consistent with the Woolworths approach.
+
+## 32. Edge API Two-Pass Pipeline is the Recommended Production Path for New World
+
+The two-pass pipeline on the Edge API is now the **recommended production architecture** for New World, superseding the mobile API approach:
+
+| Aspect | Mobile API | Edge API (Two-Pass) |
+|--------|------------|---------------------|
+| Relevance matching | Implicit (first result) | Explicit `_highlightResult.matchedWords` |
+| Per-store pricing | Native (storeId in URL) | Via cookies + Algolia filters |
+| Price sorting | PriceAsc (limited) | PRICE_ASC, PRICE_DESC |
+| Promotions | Included | Included |
+| Auth | Mobile guest token | Website JWT OR mobile token |
+| Dependency | Internal Foodstuffs API | Public website API (more stable) |
+| Implementation complexity | Low | Medium (two passes) |
+| Visibility into matches | None | Full (see matched fields) |
+
+**Decision**: Use Edge API two-pass pipeline for new development. Keep mobile API as fallback. Update `NewWorld_prototype.py` to use Edge API in next iteration.

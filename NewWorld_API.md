@@ -202,7 +202,7 @@ refresh-token lifecycle management).
 
 ---
 
-## 5. Confirmed Working Endpoints
+## 5. Confirmed Working Endpoints (Mobile API)
 
 ### 5.1 `GET /mobile/store/physical`
 
@@ -533,6 +533,15 @@ Origin:        https://www.newworld.co.nz
 Referer:       https://www.newworld.co.nz/
 ```
 
+**Store context cookies (REQUIRED for per-store pricing):**
+```
+eCom_STORE_ID: {store_id}
+STORE_ID_V2:   {store_id}|False
+Region:        NI  (or SI for South Island)
+```
+
+---
+
 ### 6.2 Store Listing
 
 **Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store`
@@ -541,43 +550,89 @@ Referer:       https://www.newworld.co.nz/
 
 **Returns**: 148 stores with full details (id, name, address, coordinates, opening hours, services).
 
-### 6.3 Product Search — WORKS (Algolia-based)
+**Note**: Returns 148 stores vs 149 from mobile API (missing "Foodie Mart" which relates to an in-house location at Foodstuffs main office on 35 Landing Drive).
 
-**Endpoint**: `POST https://api-prod.newworld.co.nz/v1/edge/search/paginated/products`
+---
 
-**Status**: ✅ **Works (HTTP 200)** with valid JWT + store context cookies.
+### 6.3 Product Search — TWO-PASS ARCHITECTURE
 
-**Required cookies for per-store pricing:**
+**TL;DR**: The Edge API does NOT have a single endpoint that provides both relevance matching AND per-store pricing. We discovered a **two-pass pipeline** that combines the best of both endpoints.
+
+#### The Problem We Faced
+
+| Endpoint | Relevance Matching | Per-Store Pricing |
+|----------|-------------------|-------------------|
+| `products-index` (Algolia) | ✅ Has `_highlightResult` with `matchedWords` | ❌ Only `averagePrice` (cross-store) |
+| `products-index-popularity-asc/desc` | ❌ NO `_highlightResult` | ❌ Only `averagePrice` |
+| `/search/paginated/products` | ❌ No `RELEVANCE` sort (400 enum mismatch) | ✅ Full per-store pricing |
+
+#### The Solution: Two-Pass Pipeline
+
+**PASS 1 — Relevance Matching (Algolia Index)**
 ```
-eCom_STORE_ID: {store_id}
-STORE_ID_V2:   {store_id}|False
-Region:        NI  (or SI for South Island)
+POST https://api-prod.newworld.co.nz/v1/edge/search/products/query/index/products-index
 ```
 
-**Request payload (Algolia format):**
+Payload:
 ```json
 {
-  "algoliaQuery": {"query": "milk"},
+  "algoliaQuery": {"query": "beef mince"},
   "page": 0,
   "hitsPerPage": 20,
+  "storeId": "{store_id}"
+}
+```
+
+Response includes `_highlightResult` with `matchedWords`:
+```json
+{
+  "hits": [
+    {
+      "productID": "5101189-KGM-000",
+      "DisplayName": "NZ Premium Beef Mince",
+      "brand": "None",
+      "averagePrice": 18.99,
+      "_highlightResult": {
+        "DisplayName": {"value": "NZ Premium <em>Beef</em> <em>Mince</em>", "matchedWords": ["beef", "mince"]},
+        "category2AndBrand": {"value": "Beef <em>Mince</em> > Premium", "matchedWords": ["beef", "mince"]}
+      }
+    }
+  ]
+}
+```
+
+**Key**: Extract `productID` from hits where `_highlightResult` has non-empty `matchedWords`.
+
+**PASS 2 — Per-Store Pricing (Paginated Endpoint with Filters)**
+```
+POST https://api-prod.newworld.co.nz/v1/edge/search/paginated/products
+```
+
+Payload (using Algolia filter syntax):
+```json
+{
+  "algoliaQuery": {
+    "query": "beef mince",
+    "filters": "productID:5101189-KGM-000 OR productID:5104350-KGM-000 OR productID:5122727-KGM-000"
+  },
+  "page": 0,
+  "hitsPerPage": 50,
   "storeId": "{store_id}",
   "sortOrder": "PRICE_ASC"
 }
 ```
 
-**Valid `sortOrder` values:** `PRICE_ASC`, `PRICE_DESC` (no `RELEVANCE`)
-
-**Response structure:**
+Response with per-store pricing:
 ```json
 {
   "products": [
     {
-      "productId": "5010693-EA-000",
-      "name": "Calci-Yum Chocolate Flavour Milk",
-      "displayName": "250ml",
-      "brand": "Anchor",
-      "singlePrice": {"price": 149, "comparativePrice": {...}},
-      "promotions": [{"rewardValue": 129, "bestPromotion": true, ...}],
+      "productId": "5349090-EA-000",
+      "name": "Beef Mince",
+      "displayName": "340g",
+      "brand": "Hellers",
+      "singlePrice": {"price": 949, "comparativePrice": {"pricePerUnit": 2791, "unitQuantityUom": "kg"}},
+      "promotions": [],
       "availability": ["IN_STORE", "ONLINE"]
     }
   ]
@@ -587,9 +642,96 @@ Region:        NI  (or SI for South Island)
 **Price extraction:**
 - Regular price (cents): `singlePrice.price`
 - Promotional price (cents): `promotions[].rewardValue` where `bestPromotion: true`
-- Use promo price if available, else regular price
+- Unit price: `singlePrice.comparativePrice.pricePerUnit` (cents per unit)
 
-### 6.4 Categories
+---
+
+### 6.4 Algolia Indices — What Exists vs What Doesn't
+
+We probed 14+ index names. Only THREE return HTTP 200:
+
+| Index Name | Status | Sort Order | `_highlightResult` | Use Case |
+|------------|--------|------------|-------------------|----------|
+| `products-index` | ✅ 200 | **Relevance (Algolia default)** | ✅ YES — has `matchedWords` | **PASS 1: Relevance matching** |
+| `products-index-popularity-asc` | ✅ 200 | Popularity ascending | ✅ Has field but NO matches | Browsing (least popular first) |
+| `products-index-popularity-desc` | ✅ 200 | Popularity descending | ✅ Has field but NO matches | Browsing (most popular first) |
+| `products-index-price-asc` | ❌ 404 | — | — | Does not exist |
+| `products-index-price-desc` | ❌ 404 | — | — | Does not exist |
+| `products-index-relevance` | ❌ 404 | — | — | Does not exist |
+| `products-index-name-asc` | ❌ 404 | — | — | Does not exist |
+| `products-index-name-desc` | ❌ 404 | — | — | Does not exist |
+| `products-index-newest` | ❌ 404 | — | — | Does not exist |
+| `products-index-bestselling` | ❌ 404 | — | — | Does not exist |
+| `products-index-trending` | ❌ 404 | — | — | Does not exist |
+
+**Critical Discovery**: Only `products-index` (the default index) provides relevance matching via `_highlightResult`. The popularity indices have the field but it's empty — they're for browsing, not search.
+
+---
+
+### 6.5 Paginated Search Endpoint — Full Capabilities
+
+**Endpoint**: `POST https://api-prod.newworld.co.nz/v1/edge/search/paginated/products`
+
+**Authentication**: Website JWT (fs-user-token cookie) OR mobile API token
+
+**Required Cookies** (per-store context):
+```python
+cookies = {
+    "eCom_STORE_ID": store_id,
+    "STORE_ID_V2": f"{store_id}|False",
+    "Region": "NI"
+}
+```
+
+**Valid `sortOrder` values** (tested, validated enum):
+- `PRICE_ASC` — Cheapest first at this store
+- `PRICE_DESC` — Most expensive first
+
+**Invalid `sortOrder` values** (return HTTP 400 enum mismatch):
+- `RELEVANCE` ❌
+- `RELEVANCY` ❌
+- `DEFAULT` ❌
+- `BEST_MATCH` ❌
+
+**Algolia Filter Syntax** (confirmed working):
+```json
+"algoliaQuery": {
+  "query": "milk",
+  "filters": "productID:5201479-EA-000 OR productID:5201490-EA-000 OR productID:5201487-EA-000"
+}
+```
+
+Supports: `OR`, `AND`, field:value syntax. Full Algolia filter syntax works.
+
+**Response Structure:**
+```json
+{
+  "products": [...],
+  "totalHits": 34,
+  "page": 0,
+  "totalPages": 1,
+  "hitsPerPage": 50,
+  "algoliaSearchResult": {},
+  "tobaccoProducts": []
+}
+```
+
+**Product Fields:**
+| Field | Type | Notes |
+|-------|------|-------|
+| `productId` | string | Matches `productID` from Algolia index |
+| `name` | string | Product name |
+| `displayName` | string | Size/variant (e.g., "2l", "340g") |
+| `brand` | string | Brand name |
+| `singlePrice.price` | int | Regular price in cents |
+| `singlePrice.comparativePrice` | object | Unit pricing info |
+| `promotions[]` | array | Promo objects with `rewardValue` (cents) |
+| `availability` | array | `["IN_STORE", "ONLINE"]` etc. |
+| `algoliaAnalytics.searchPosition` | int | Position in sorted results |
+
+---
+
+### 6.6 Categories Endpoint
 
 **Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store/{store_id}/categories`
 
@@ -597,39 +739,118 @@ Region:        NI  (or SI for South Island)
 
 **Returns**: Category tree for store navigation.
 
-### 6.5 Comparison: Mobile API vs Edge API
+---
 
-| Feature | Mobile API | Edge API (Website) |
-|---------|------------|-------------------|
+### 6.7 Comparison: Mobile API vs Edge API (Two-Pass)
+
+| Feature | Mobile API | Edge API (Two-Pass) |
+|---------|------------|---------------------|
 | Auth | Guest login POST | Website session OR mobile token |
 | Store listing | ✅ 149 stores | ✅ 148 stores |
-| Product search | ✅ `/mobile/ecomm-products/MNW/{id}/search` | ✅ `/v1/edge/search/paginated/products` |
-| Per-store pricing | ✅ Native (storeId in URL) | ✅ Via cookies (`eCom_STORE_ID`) |
+| Product search | ✅ Single call | ✅ Two-pass (relevance + pricing) |
+| Relevance matching | Implicit (first result) | ✅ Explicit `_highlightResult.matchedWords` |
+| Per-store pricing | ✅ Native (storeId in URL) | ✅ Via cookies + Algolia filters |
 | Price format | Cents in response | Cents in `singlePrice.price` |
 | Promotions | Included | Included in `promotions[]` |
-| Sort | Relevance (default) | `PRICE_ASC`, `PRICE_DESC` |
+| Sort | Relevance (default), PriceAsc | `PRICE_ASC`, `PRICE_DESC` only |
 | Pagination | Offset/limit | Algolia page/hitsPerPage |
 | Token source | Mobile API only | Mobile API OR website |
+| Dependency | Internal mobile API | Public website API (more stable) |
 
-### 6.6 Conclusion
+---
 
-**The Edge API CAN replace the mobile API** for the meal cost optimizer:
+### 6.8 Two-Pass Pipeline Implementation
 
-1. ✅ Store listing works
-2. ✅ Product search works (with Algolia query format)
-3. ✅ Per-store pricing works (via cookies)
-4. ✅ Promotional pricing included
-5. ✅ Works with website JWT (no mobile API dependency)
+```python
+def two_pass_search(token, query, store_id, max_relevance=20, sort_order="PRICE_ASC"):
+    """
+    Complete two-pass pipeline: Relevance -> Per-Store Pricing
+    """
+    # PASS 1: Algolia relevance search (products-index)
+    url1 = f"{EDGE_BASE}/search/products/query/index/products-index"
+    payload1 = {
+        "algoliaQuery": {"query": query},
+        "page": 0,
+        "hitsPerPage": max_relevance,
+        "storeId": store_id
+    }
+    r1 = requests.post(url1, headers=headers, json=payload1, cookies=cookies)
+    hits = r1.json().get("hits", [])
+    
+    # Extract productIDs with relevance matches
+    product_ids = []
+    for hit in hits:
+        hr = hit.get("_highlightResult", {})
+        if any(isinstance(v, dict) and v.get("matchedWords") for v in hr.values()):
+            product_ids.append(hit["productID"])
+    
+    # PASS 2: Per-store pricing with Algolia filters
+    url2 = f"{EDGE_BASE}/search/paginated/products"
+    filter_str = " OR ".join([f"productID:{pid}" for pid in product_ids])
+    payload2 = {
+        "algoliaQuery": {"query": query, "filters": filter_str},
+        "page": 0,
+        "hitsPerPage": 50,
+        "storeId": store_id,
+        "sortOrder": sort_order
+    }
+    r2 = requests.post(url2, headers=headers, json=payload2, cookies=cookies)
+    return r2.json().get("products", [])
+```
 
-**Advantages of Edge API:**
-- No dependency on mobile API endpoint
-- Algolia-powered search with proper sorting
-- Works with standard browser JWT (more future-proof)
+---
+
+### 6.9 Why This Matters for the Meal Cost Optimizer
+
+**Without relevance matching**: Searching "beef mince" could return pet food, pies, or unrelated products first.
+
+**With two-pass pipeline**: 
+1. Algolia finds ACTUALLY RELEVANT products (beef mince, not cat food)
+2. Paginated endpoint gets EXACT per-store prices for those relevant products
+3. Sort by `PRICE_ASC` to find cheapest at that store
+
+This method seems to be superior to the mobile API in terms of search relevancy and should be more robust than the version-dependant mobile API endpoint which could break at any point.
+
+---
+
+### 6.10 Exploration Timeline & Breakthroughs
+
+| Phase | What We Tried | Result | Breakthrough |
+|-------|---------------|--------|--------------|
+| 1 | Mobile API endpoints | All worked | Baseline established |
+| 2 | Edge API `/v1/edge/store/physical` | ✅ 200 with JWT | Store listing works |
+| 3 | Edge API `/v1/edge/products/search` | ❌ 404 | Wrong endpoint |
+| 4 | Edge API `/v1/edge/ecomm-products/*` | ❌ 404 | Legacy paths dead |
+| 5 | Browser DevTools capture | Found `products-index-popularity-asc` | **Algolia index pattern discovered** |
+| 6 | Tested 14+ index names | Only 3 work (200) | `products-index` = relevance |
+| 7 | Tested `/search/paginated/products` | ✅ 200 with cookies | Per-store pricing works |
+| 8 | Tried `sortOrder: RELEVANCE` | ❌ 400 enum mismatch | No relevance sort on pricing endpoint |
+| 9 | Tried Algolia `filters` parameter | ✅ Works! | **Bridge between relevance + pricing** |
+| 10 | Two-pass pipeline | ✅ End-to-end working | **Production-ready solution** |
+
+---
+
+### 6.11 Conclusion
+
+**The Edge API CAN fully replace the mobile API** for the meal cost optimizer:
+
+1. ✅ Store listing works (148 stores)
+2. ✅ Product search works via two-pass pipeline
+3. ✅ Explicit relevance matching via `_highlightResult`
+4. ✅ Per-store pricing via cookies + Algolia filters
+5. ✅ Promotional pricing included
+6. ✅ Works with website JWT (no mobile API dependency)
+7. ✅ More future-proof (public website API)
+
+**Advantages of Edge API over Mobile API:**
+- No dependency on Foodstuffs mobile API endpoint
+- Explicit relevance matching (not just "first result")
+- Algolia-powered search with proper price sorting
+- Works with standard browser JWT (same IdP: `online-customer`)
 - Categories endpoint available for navigation
 
-**Implementation**: Use `scripts/newworld/Exploration/edge_optimizer_demo.py` as reference.
-
-See `scripts/newworld/Exploration/EDGE_API_FINDINGS.md` for full exploration details.
+**Implementation Reference**: `scripts/newworld/Exploration/edge_optimizer_demo.py`
+**Full Exploration Details**: `scripts/newworld/Exploration/EDGE_API_FINDINGS.md`
 
 ---
 
@@ -670,7 +891,7 @@ Differences of $0.10-$0.50 per item between nearby stores are typical. For examp
 - Beef mince: $9.49 (Shore City) vs $26.99 (Metro Auckland)
 - Garlic: $4.49 (Shore City) vs $52.99 (Stonefields)
 
-**Note: this simple calculation has differences due to per-store availibility rather than per-store pricing.**
+**Note: this simple calculation has differences due to per-store availability rather than per-store pricing.**
 
 ### 7.3 Why This Matters
 
@@ -731,7 +952,7 @@ No geocoding required — coordinates are provided directly by the mobile API.
 
 ## 9. Production Architecture
 
-### 9.1 How to Search Products by Store
+### 9.1 How to Search Products by Store (Mobile API)
 
 ```python
 import cloudscraper
@@ -783,7 +1004,7 @@ class NewWorldAPI:
         return {}
 ```
 
-### 9.2 How to Find Nearby Stores and Compare Prices
+### 9.2 How to Find Nearby Stores and Compare Prices (Mobile API)
 
 ```python
 import pandas as pd
@@ -861,25 +1082,110 @@ for _, store in nearby.iterrows():
     print(f"  {'TOTAL':25s} ${total:.2f}\n")
 ```
 
-### 9.3 Ingredient Search Strategy
+### 9.3 Edge API Two-Pass Pipeline (New — Recommended)
+
+```python
+import requests
+
+WEB_BASE = "https://www.newworld.co.nz"
+EDGE_BASE = "https://api-prod.newworld.co.nz/v1/edge"
+
+def get_website_session():
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Origin": WEB_BASE,
+        "Referer": WEB_BASE + "/",
+    })
+    session.get(WEB_BASE, timeout=30)
+    session.post(f"{WEB_BASE}/api/user/get-current-user", json={}, timeout=30)
+    return session.cookies.get("fs-user-token")
+
+def two_pass_search(token, query, store_id, max_relevance=20, sort_order="PRICE_ASC"):
+    """Complete two-pass pipeline: Relevance -> Per-Store Pricing"""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "access_token": token,
+        "Content-Type": "application/json",
+        "Origin": WEB_BASE,
+        "Referer": f"{WEB_BASE}/shop",
+        "User-Agent": "Mozilla/5.0",
+    }
+    cookies = {
+        "eCom_STORE_ID": store_id,
+        "STORE_ID_V2": f"{store_id}|False",
+        "Region": "NI",
+    }
+    
+    # PASS 1: Relevance matching
+    url1 = f"{EDGE_BASE}/search/products/query/index/products-index"
+    payload1 = {
+        "algoliaQuery": {"query": query},
+        "page": 0,
+        "hitsPerPage": max_relevance,
+        "storeId": store_id
+    }
+    r1 = requests.post(url1, headers=headers, json=payload1, cookies=cookies, timeout=30)
+    hits = r1.json().get("hits", [])
+    
+    product_ids = []
+    for hit in hits:
+        hr = hit.get("_highlightResult", {})
+        if any(isinstance(v, dict) and v.get("matchedWords") for v in hr.values()):
+            product_ids.append(hit["productID"])
+    
+    # PASS 2: Per-store pricing
+    url2 = f"{EDGE_BASE}/search/paginated/products"
+    filter_str = " OR ".join([f"productID:{pid}" for pid in product_ids])
+    payload2 = {
+        "algoliaQuery": {"query": query, "filters": filter_str},
+        "page": 0,
+        "hitsPerPage": 50,
+        "storeId": store_id,
+        "sortOrder": sort_order
+    }
+    r2 = requests.post(url2, headers=headers, json=payload2, cookies=cookies, timeout=30)
+    return r2.json().get("products", [])
+```
+
+### 9.4 Ingredient Search Strategy
 
 The optimizer takes the **first (most relevant)** result per query. This avoids
 irrelevant bulk items that might appear at lower prices (e.g., pet food for
 "beef mince"). 21 dishes are hand-curated in `DISH_INGREDIENTS` — no NLP/LLM
 parsing.
 
-### 9.4 Architecture Diagram
+### 9.5 Architecture Diagram
 
+**Mobile API Pipeline:**
 ```
 newworld_stores.csv  (149 stores with UUID, name, lat, lon)
-  |
-  +---> haversine filter (user address → lat/lon → nearby stores within 5 km)
-  |
-  v
+   |
+   +---> haversine filter (user address → lat/lon → nearby stores within 5 km)
+   |
+   v
 FOR EACH nearby store:
   1. NewWorldAPI().search_products(store_id, ingredient)
   2. products[0]["price"] / 100  →  price in dollars
   3. Sum across all ingredients
+  |
+  v
+Compare totals → cheapest store
+```
+
+**Edge API Two-Pass Pipeline:**
+```
+newworld_stores.csv  (149 stores with UUID, name, lat, lon)
+   |
+   +---> haversine filter (user address → lat/lon → nearby stores within 5 km)
+   |
+   v
+FOR EACH nearby store:
+  PASS 1: POST /v1/edge/search/products/query/index/products-index
+    → Get productIDs with _highlightResult.matchedWords
+  PASS 2: POST /v1/edge/search/paginated/products with filters
+    → Get per-store singlePrice + promotions for matched products
+    → Sort by PRICE_ASC
   |
   v
 Compare totals → cheapest store
@@ -944,13 +1250,13 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 | Browse products by category | [OK] Yes | `GET /mobile/v1/products/category` |
 | Get store specials | [OK] Yes | `POST .../specials` |
 | Get product categories | [OK] Yes | `GET /mobile/v1/products/category` |
-| Per-store pricing | [OK] YES (native, no cookie tricks) | Store ID in URL path |
+| Per-store pricing | [OK] YES (native) | Store ID in URL path |
 | View cart / trolley | [WARN] Requires user auth | `GET /mobile/cart` |
 | View previous purchases | [WARN] Requires user auth | `POST /mobile/previousPurchases` |
 | Get hierarchical category tree | [OK] Yes | `GET /mobile/v1/products/category?storeId=...` |
 | App upgrade check | [OK] Yes | `POST /mobile/v1/upgrade` |
 | Error code lookup | [OK] Yes | `GET /mobile/v1/error` |
-| New World Edge API | [FAIL] JWT required | `https://api-prod.newworld.co.nz/v1/edge/store/physical` |
+| New World Edge API | [OK] Yes | `https://api-prod.newworld.co.nz/v1/edge/` |
 
 ---
 
@@ -979,20 +1285,24 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 9. **Nominatim rate limit: 1 req/sec** — Geocoding is done through Nominatim
    (OpenStreetMap) with a 1 request per second rate limit.
 10. **Store names from web vs API** — The CSV store names may differ slightly from
-    the API's store names (e.g., `"New World Albany"` vs `"New World Albany"` —
-    casing and prefix differences). The API names are authoritative.
+    the API's store names. The API names are authoritative.
 11. **149 stores total** — All New World stores nationwide. UUID format `store_id`
     strings are consistent across API and web data sources.
-12. **New World Edge API requires JWT** — The `api-prod.newworld.co.nz/v1/edge/store/physical`
-    endpoint returns 401 with JWT verification error. Not usable without proper auth.
-13. **User-Agent must match banner** — Use `NewWorldApp/4.32.0` for New World
+12. **User-Agent must match banner** — Use `NewWorldApp/4.32.0` for New World
     (`banner: "MNW"`), not `PAKnSAVEApp/4.32.0`.
-14. **7 stores missing URLs** — After merging mobile API data with store-finder page
+13. **7 stores missing URLs** — After merging mobile API data with store-finder page
     data, 7 stores have no URL match due to name mismatches (e.g., "Metro Auckland"
     vs "Metro Queen Street", macron differences for Tūrangi/Wanaka). URLs are only
     used for linking to the website, not for the API-based optimizer.
-15. **1 store discrepancy** — The store-finder page has 150 stores; the mobile API
+14. **1 store discrepancy** — The store-finder page has 150 stores; the mobile API
     returns 149. "Foodie Mart" (Mangere) appears in the API but not on the page.
+15. **Edge API requires store cookies for pricing** — The `eCom_STORE_ID`,
+    `STORE_ID_V2`, and `Region` cookies are mandatory for per-store pricing on
+    the paginated endpoint.
+16. **Edge API relevance requires two-pass** — No single endpoint gives both
+    relevance matching AND per-store pricing. Use the two-pass pipeline.
+17. **Algolia filter syntax works** — The paginated endpoint accepts full Algolia
+    filter syntax (`productID:xxx OR productID:yyy`) to bridge relevance + pricing.
 
 ---
 
@@ -1006,11 +1316,14 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 | Fresh session per store | Not required | Not required | Required (server resets cookies) |
 | Product search | `POST` with JSON body | `POST` with JSON body | `GET` with query params |
 | Prices in | Cents (integer) | Cents (integer) | Dollars (float) |
-| Cloudflare | API domain: none, Website: Cloudflare | API domain: none, Website: Cloudflare | No Cloudflare on API |
+| Cloudflare | API: none, Website: Cloudflare | API: none, Website: Cloudflare | No Cloudflare on API |
 | Store count | 149 | 60 | 183 (Woolworths NZ) |
 | Auth complexity | Low (2 POST calls) | Low (2 POST calls) | Medium (cookie construction) |
 | Banner value | `"MNW"` | `"PNS"` | N/A |
 | User-Agent | `NewWorldApp/4.32.0` | `PAKnSAVEApp/4.32.0` | N/A |
+| Relevance matching | Implicit (first result) | Implicit (first result) | First result (no highlight) |
+| Price sorting | PriceAsc (mobile), PRICE_ASC (Edge) | PriceAsc | Not available |
+| Edge API alternative | Two-pass pipeline (NEW) | Not explored | Not applicable |
 
 ---
 
@@ -1018,8 +1331,20 @@ Output: per-store itemised prices, total cost comparison, and the cheapest store
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/newworld/NewWorld_prototype.py` | CLI entry point: geocode, nearby stores, per-store search, cost comparison |
+| `scripts/newworld/NewWorld_prototype.py` | CLI entry point: geocode, nearby stores, per-store search, cost comparison (Mobile API) |
 | `scripts/newworld/fetch_stores.py` | One-shot data builder: fetches stores from mobile API + store-finder page URLs |
+| `scripts/newworld/Exploration/explore_edge_api.py` | Phase 1: Edge API endpoint enumeration |
+| `scripts/newworld/Exploration/explore_edge_api2.py` | Phase 2: Mobile token testing on Edge API |
+| `scripts/newworld/Exploration/explore_edge_api3.py` | Phase 3: Website JWT authentication |
+| `scripts/newworld/Exploration/explore_edge_api4.py` | Phase 4: Store listing + categories |
+| `scripts/newworld/Exploration/explore_edge_api5.py` | Phase 5: Website page analysis (__NEXT_DATA__) |
+| `scripts/newworld/Exploration/explore_algolia_indices.py` | Phase 6: Algolia index enumeration (14+ indices tested) |
+| `scripts/newworld/Exploration/explore_indices_detailed.py` | Phase 7: Detailed response inspection |
+| `scripts/newworld/Exploration/explore_edge_auth.py` | Phase 8: Auth flow + paginated search discovery |
+| `scripts/newworld/Exploration/edge_full_test.py` | Phase 9: Full store + search + pricing test |
+| `scripts/newworld/Exploration/edge_optimizer_demo.py` | Phase 10: Complete two-pass optimizer demo |
+| `scripts/newworld/Exploration/test_milk_metro_relevance.py` | Focused test: milk at Metro Auckland (relevance → price) |
+| `scripts/newworld/Exploration/edge_api_relevance_exploration.py` | Comprehensive documentation script (this file's companion) |
 | `scripts/paknsave/fetch_stores.py` | Reference: Pak'nSave store data builder (same API pattern) |
 
 ---
@@ -1050,3 +1375,74 @@ mobile API endpoints:
   — Earlier OpenAPI spec covering authentication, stores, product search, cart, categories
 - **[PaknSave.txt Gist](https://gist.github.com/Arefu/b12d83a5dffb6573a1b1907044ad8de4)**
   — Early endpoint enumeration including legacy `CommonApi` web endpoints
+
+---
+
+## 18. Appendix: Full Edge API Endpoint Reference
+
+### 18.1 Base Configuration
+```
+Base URL: https://api-prod.newworld.co.nz/v1/edge
+Auth:     JWT (mobile token OR website fs-user-token cookie)
+Headers:  Authorization: Bearer {jwt}, access_token: {jwt}
+          Origin: https://www.newworld.co.nz
+          Referer: https://www.newworld.co.nz/
+Cookies:  eCom_STORE_ID, STORE_ID_V2, Region (for per-store pricing)
+```
+
+### 18.2 Endpoints
+
+| Method | Endpoint | Auth | Cookies | Purpose |
+|--------|----------|------|---------|---------|
+| GET | `/store` | JWT | Optional | List all 148 stores |
+| GET | `/store/{id}/categories` | JWT | Required | Category tree for store |
+| POST | `/search/products/query/index/products-index` | JWT | Required | **Relevance search (Algolia)** |
+| POST | `/search/products/query/index/products-index-popularity-asc` | JWT | Required | Popularity browse (ASC) |
+| POST | `/search/products/query/index/products-index-popularity-desc` | JWT | Required | Popularity browse (DESC) |
+| POST | `/search/paginated/products` | JWT | Required | **Per-store pricing + sort** |
+
+### 18.3 Algolia Index Payload (all index endpoints)
+```json
+{
+  "algoliaQuery": {"query": "search term"},
+  "page": 0,
+  "hitsPerPage": 20,
+  "storeId": "store-uuid"
+}
+```
+
+### 18.4 Paginated Search Payload
+```json
+{
+  "algoliaQuery": {
+    "query": "search term",
+    "filters": "productID:xxx OR productID:yyy"
+  },
+  "page": 0,
+  "hitsPerPage": 50,
+  "storeId": "store-uuid",
+  "sortOrder": "PRICE_ASC"
+}
+```
+
+### 18.5 Valid sortOrder Values
+| Value | Description |
+|-------|-------------|
+| `PRICE_ASC` | Cheapest first at this store |
+| `PRICE_DESC` | Most expensive first |
+
+### 18.6 Response Price Extraction
+```python
+# Regular price (dollars)
+price = product["singlePrice"]["price"] / 100
+
+# Promotional price (dollars) - if available
+promo = product["promotions"][0]["rewardValue"] / 100 if product["promotions"] else None
+
+# Use promo price if exists, else regular
+final_price = promo if promo is not None else price
+
+# Unit price (cents per unit)
+unit_price = product["singlePrice"]["comparativePrice"]["pricePerUnit"]
+unit_uom = product["singlePrice"]["comparativePrice"]["unitQuantityUom"]
+```

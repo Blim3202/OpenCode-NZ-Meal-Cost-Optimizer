@@ -276,4 +276,54 @@ The mobile token works because both APIs share the same IdP (`iss: "online-custo
 
 See `scripts/newworld/Exploration/explore_edge_auth.py`, `edge_full_test.py`, `edge_optimizer_demo.py` for working implementations.
 
+## 28. New World Edge API — Two-Pass Pipeline for Relevance + Per-Store Pricing
+
+**Symptom**: The `/search/paginated/products` endpoint has per-store pricing but NO relevance sort (only `PRICE_ASC`/`PRICE_DESC`, returns 400 for `RELEVANCE`). The Algolia index endpoints (`products-index`, `products-index-popularity-asc/desc`) have relevance matching via `_highlightResult` but only `averagePrice` (cross-store), not per-store pricing.
+
+**Exploration**:
+- Tested 14+ Algolia index names via `/search/products/query/index/{index_name}`
+- Only 3 indices exist and return 200:
+  - `products-index` (default) — **HAS `_highlightResult` with `matchedWords`** — relevance sorted
+  - `products-index-popularity-asc` — NO relevance matches, popularity sorted ASC
+  - `products-index-popularity-desc` — NO relevance matches, popularity sorted DESC
+- All other indices (`price-asc`, `price-desc`, `relevance`, `name-asc`, `name-desc`, `newest`, `bestselling`, `trending`) return 404
+
+**Breakthrough**: The paginated endpoint accepts Algolia `filters` parameter! Using `filters: "productID:xxx OR productID:yyy"` allows querying per-store pricing for SPECIFIC product IDs discovered in Pass 1.
+
+**Two-Pass Pipeline**:
+```
+PASS 1 (Relevance): POST /search/products/query/index/products-index
+  → Returns hits with _highlightResult.matchedWords showing exact field matches
+  → Extract productID from hits where matchedWords not empty
+
+PASS 2 (Pricing): POST /search/paginated/products with filters
+  → Filters: "productID:5101189-KGM-000 OR productID:5104350-KGM-000 ..."
+  → Returns per-store singlePrice.price + promotions[].rewardValue
+  → Sort: PRICE_ASC (cheapest at this store)
+```
+
+**Results**: For "beef mince" at Metro Auckland:
+- Pass 1: 40 hits, 40 with relevance matches (DisplayName, category2AndBrand)
+- Pass 2: 3 products with per-store pricing: $9.49, $13.49, $26.99 (sorted by price)
+
+**Advantage over Mobile API**: Explicit relevance matching via `_highlightResult` (mobile API returns first result but no visibility into WHY it matched). Superior for ingredient search where we must avoid pet food matching "beef mince".
+
+See `scripts/newworld/Exploration/edge_api_relevance_exploration.py` (comprehensive) and `test_milk_metro_relevance.py` (focused test).
+
+## 29. New World Edge API — Full Replacement Confirmed
+
+**Summary**: The Edge API with the two-pass pipeline is now the **recommended production path** for New World:
+- Store listing (148 stores via `/v1/edge/store`)
+- Relevance matching (Algolia `products-index` with `_highlightResult`)
+- Per-store pricing (paginated endpoint with Algolia filters)
+- Price sorting (`PRICE_ASC`/`PRICE_DESC`)
+- Promotions (`singlePrice.price` + `promotions[].rewardValue`)
+- Auth via website JWT (same IdP as mobile, more stable)
+- No Foodstuffs mobile API dependency
+- Categories endpoint available for navigation
+
+**Documentation**: `NewWorld_API.md` section 6 completely rewritten with full endpoint reference, payloads, and two-pass pipeline implementation.
+
+**Scripts**: `edge_api_relevance_exploration.py`, `test_milk_metro_relevance.py`, `edge_optimizer_demo.py`
+
 (End of file)

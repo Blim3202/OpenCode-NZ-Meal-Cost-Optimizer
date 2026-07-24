@@ -1,29 +1,142 @@
-# 🛒 NZ Meal Cost Optimizer
+# NZ Meal Cost Optimizer
 
-Find the cheapest Pak'nSave or Woolworths for a given dish by comparing ingredient prices across nearby stores in New Zealand.
+Finds the cheapest Pak'nSave, New World, or Woolworths for a given dish by comparing ingredient prices across nearby stores (within 5 km of a NZ address).
 
-## 🚀 Proof of Concept (PoC)
-Check out our Pak'nSave live dashboard on Google Cloud, built using Google AI Studio: [NZ Meal Cost Optimizer Dashboard](https://nz-mealcost-optimizer-587140610895.asia-southeast1.run.app)
+## How It Works
 
-This dashboard is a **Proof of Concept** demonstrating:
-- **LLM Integration:** Semantic searching, retrieval, and smart filtering of products.
-- **Backend Pipeline:** Automated API calls and reliable data extraction.
-- **Geocoding:** Precise store identification using Nominatim.
+1. Geocode address to lat/lon (Nominatim)
+2. Filter stores within 5 km (Haversine)
+3. Map dish to ingredients (21 hand-curated dishes)
+4. Search each ingredient at each store via API
+5. Compare totals, display cheapest
 
-## 💡 How It Works
-1. **Input:** User provides an address and a dish.
-2. **Geocoding:** Converts address to coordinates.
-3. **Store Filtering:** Filters supermarkets within a 5km radius.
-4. **Price Comparison:** Automates ingredient price extraction from Pak'nSave (API) and Woolworths (Playwright-headed scraping).
-5. **Analysis:** Calculates the cheapest total cost for your dish.
+## Supported Stores
 
-## 🛠 Tech Stack
-- **Python**
-- **Playwright** (for Woolworths scraping)
-- **Requests / Cloudscraper** (for API interactions)
-- **Pandas / NumPy** (for data processing)
-- **JupyterLab** (experimental environment)
-- **LLMs** (for semantic product filtering)
+| Store | API | Stores | Per-Store Pricing | Status |
+|-------|-----|--------|-------------------|--------|
+| Pak'nSave | Edge API (two-pass) | 57 | Yes | Production-ready |
+| New World | Edge API (two-pass) | 148 | Yes | Production-ready |
+| Woolworths | REST API (cookie injection) | 183 | Yes | Production-ready |
 
-## ⚠️ Disclaimer
-This is an **experimental, personal project**. It is not affiliated with or endorsed by Pak'nSave, Woolworths, or any other supermarket chain. Functionality depends on the stability of their websites and APIs; scraping techniques may break without notice.
+## Quick Start
+
+```powershell
+# Setup
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Run optimizer
+python scripts/paknsave/PaknSave_prototype.py "Botany, Auckland" "spaghetti bolognese"
+python scripts/newworld/NewWorld_prototype.py "Botany, Auckland" "spaghetti bolognese"
+python scripts/woolworths/woolworths_optimizer.py "Botany, Auckland" "spaghetti bolognese"
+```
+
+## Architecture
+
+### Pak'nSave / New World (Edge API Two-Pass Pipeline)
+
+Both use the same Foodstuffs backend with identical API structure:
+
+```
+GET website → POST get-current-user → JWT token
+  → FOR EACH store:
+    → FOR EACH ingredient:
+      PASS 1: POST /search/products/query/index/products-index
+        → Extract productIDs with relevance matches
+      PASS 2: POST /search/paginated/products (with filters)
+        → Returns per-store pricing
+```
+
+**Key differences:**
+- Pak'nSave: 57 stores, requires pet food filtering via `category1`
+- New World: 148 stores, no pet food filtering needed
+
+### Woolworths (Cookie-Based)
+
+```
+GET / → session cookies
+  → Construct cw-lrkswrdjp cookie from store data
+  → FOR EACH store:
+    → Fresh session per store (required)
+    → Search /api/v1/products?target=search
+```
+
+## Project Structure
+
+```
+opencode/
+├── data/
+│   ├── paknsave_stores.csv           # 60 stores (mobile API)
+│   ├── newworld_stores.csv           # 149 stores (mobile API)
+│   └── woolworths_store_data.csv     # 183 stores
+├── scripts/
+│   ├── paknsave/
+│   │   ├── PaknSave_prototype.py     # CLI optimizer
+│   │   ├── fetch_stores.py           # Build store data
+│   │   └── Exploration/              # Edge API development
+│   ├── newworld/
+│   │   ├── NewWorld_prototype.py     # CLI optimizer
+│   │   ├── fetch_stores.py           # Build store data
+│   │   └── Exploration/              # Edge API development
+│   └── woolworths/
+│       ├── woolworths_optimizer.py   # CLI optimizer
+│       ├── woolworths_api.py         # API module
+│       └── Exploration/              # API development
+├── notebooks/                        # Jupyter prototypes
+├── PaknSave_API.md                   # Pak'nSave API docs
+├── NewWorld_API.md                   # New World API docs
+├── Woolworths_API.md                 # Woolworths API docs
+├── design.md                         # Technical design
+├── decision.md                       # Key decisions
+└── logs.md                           # Error log
+```
+
+## Dish Coverage
+
+21 hand-curated dishes with mapped ingredients:
+
+| Dish | Ingredients |
+|------|-------------|
+| Spaghetti Bolognese | beef mince, spaghetti pasta, canned tomatoes, onion, carrot, garlic, mixed herbs |
+| Butter Chicken | chicken breast, butter chicken sauce, rice, cream, onion |
+| Chicken Stir Fry | chicken breast, stir fry vegetables, soy sauce, rice noodles |
+| Fish and Chips | fish fillets, potatoes, flour, oil |
+| Pumpkin Soup | pumpkin, onion, cream, stock, bread |
+| ... | (17 more dishes) |
+
+Full list in `design.md` or `DISH_INGREDIENTS` in prototype scripts.
+
+## API Reference
+
+### PaknSave Edge API
+
+- **Base URL**: `https://api-prod.paknsave.co.nz/v1/edge`
+- **Auth**: Website JWT (`fs-user-token` cookie)
+- **Store context**: `eCom_STORE_ID`, `STORE_ID_V2`, `Region` cookies
+- **Endpoints**: See `PaknSave_API.md` section 6
+
+### New World Edge API
+
+- **Base URL**: `https://api-prod.newworld.co.nz/v1/edge`
+- **Auth**: Website JWT (`fs-user-token` cookie)
+- **Store context**: `eCom_STORE_ID`, `STORE_ID_V2`, `Region` cookies
+- **Endpoints**: See `NewWorld_API.md` section 6
+
+### Woolworths API
+
+- **Base URL**: `https://www.woolworths.co.nz`
+- **Auth**: Session cookies (no login required)
+- **Store context**: `cw-lrkswrdjp` cookie (constructed from store data)
+- **Endpoints**: See `Woolworths_API.md`
+
+## Limitations
+
+- **Unit sizes**: Prices shown for full units (e.g., whole kg of mince)
+- **Garlic pricing**: Loose garlic is per-kg ($40+); crushed garlic jar ($2-3) returned instead
+- **Store density**: Auckland CBD has 1 store within 5 km; East Auckland has 3
+- **Woolworths sessions**: Each store requires a fresh `requests.Session`
+- **Search relevance**: Generic terms may return unrelated products; be specific
+
+## Disclaimer
+
+This is an experimental, personal project. Not affiliated with or endorsed by Pak'nSave, New World, Woolworths, or any supermarket chain. Functionality depends on API stability; endpoints may change without notice.

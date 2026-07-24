@@ -6,7 +6,7 @@ Finds the cheapest Pak'nSave, New World, or Woolworths for a given dish by compa
 
 ```powershell
 .venv\Scripts\Activate.ps1
-pip install -r requirements.md
+pip install -r requirements.txt
 ```
 
 ## Project Layout
@@ -57,7 +57,7 @@ opencode/
 ├── design.md                                   # Technical design (API, auth, pipeline)
 ├── decision.md                                 # Key decisions and rationale
 ├── logs.md                                     # Major errors and resolutions
-├── requirements.md                             # Pinned dependencies
+├── requirements.txt                            # Pinned dependencies
 └── README.md                                   # Project readme
 ```
 
@@ -85,7 +85,7 @@ opencode/
 | `notebooks/PaknSave_meal_cost_optimizer.ipynb` | Pak'nSave prototype. |
 | `notebooks/Woolworths_meal_cost_optimizer.ipynb` | Woolworths pipeline, utilizes `woolworths_optimizer.py`. |
 | `data/woolworths_store_data.json` | Store details with `extra1` (=fulfilmentStoreId) and `extra2` (=pickupAddressId). Key data source for cookie construction. |
-| `requirements.md` | Pinned deps. Core: `cloudscraper`, `requests`, `pandas`, `numpy`, `beautifulsoup4`, `playwright`, `jupyterlab`. |
+| `requirements.txt` | Pinned deps. Core: `cloudscraper`, `requests`, `pandas`, `numpy`, `beautifulsoup4`, `playwright`, `jupyterlab`. |
 
 ## Key Gotchas
 

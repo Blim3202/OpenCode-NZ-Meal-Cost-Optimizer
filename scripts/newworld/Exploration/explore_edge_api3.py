@@ -2,14 +2,14 @@ import requests
 import json
 
 # Get token for mobile API
-r = requests.post(
+login_r = requests.post(
     'https://api-prod.prod.fsniwaikato.kiwi/prod/mobile/user/login/guest',
     json={'banner': 'MNW'},
     headers={'User-Agent': 'NewWorldApp/4.32.0', 'Content-Type': 'application/json'},
     timeout=10
 )
-r.raise_for_status()
-token = r.json()['access_token']
+login_r.raise_for_status()
+token = login_r.json()['access_token']
 auth_headers = {
     'Authorization': f'Bearer {token}',
     'access_token': token,
@@ -45,22 +45,10 @@ for ep in website_apis:
     except Exception as e:
         print(f'{ep}: ERROR - {e}')
 
-# Check CDX API
-print("\n=== CDX API Tests ===")
-cdx_endpoints = [
-    'https://api.cdx.nz/site-location/api/v1/sites',
-    'https://api.cdx.nz/foodstuffs/api/v1/sites',
-]
-for ep in cdx_endpoints:
-    try:
-        r = requests.get(ep, timeout=5)
-        print(f'{ep}: {r.status_code} - {r.text[:200]}')
-    except Exception as e:
-        print(f'{ep}: ERROR - {e}')
 
 # Check the refresh token
 print("\n=== Refresh Token ===")
-refresh_token = r.json().get('refresh_token')
+refresh_token = login_r.json().get('refresh_token')
 if refresh_token:
     r2 = requests.post(
         'https://api-prod.prod.fsniwaikato.kiwi/prod/mobile/v1/users/login/refreshtoken',

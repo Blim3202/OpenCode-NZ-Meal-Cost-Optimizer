@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Explore Algolia index endpoints - detailed response inspection
 """

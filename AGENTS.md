@@ -15,7 +15,7 @@ pip install -r requirements.md
 opencode/
 ├── data/
 │   ├── Exploration/
-│   │   └── part2_cookies.json                  # Playwright-captured full cookie jars (Greymouth, Glenfield, baseline)
+│   │   └── woolworths/                         # Exploration data files (part2_cookies.json). Full tree contents shortened.
 │   ├── newworld_stores.csv                     # 149 stores: store_id (UUID), name, url, address, lat, lon, banner, click_and_collect, delivery
 │   ├── paknsave_stores.csv                     # 60 stores: store_id (GUID), name, address, city, region, lat, lon
 │   ├── paknsave_store_slugs.csv                # slug → store_id mapping (albany → 65defcf2-...)
@@ -31,21 +31,21 @@ opencode/
 ├── scripts/
 │   ├── newworld/
 │   │   ├── fetch_stores.py                     # One-shot: builds newworld_stores.csv from mobile API + store-finder page
-│   │   └── NewWorld_prototype.py               # CLI: python scripts/newworld/NewWorld_prototype.py "address" "dish"
+│   │   ├── NewWorld_prototype.py               # CLI: python scripts/newworld/NewWorld_prototype.py "address" "dish"
+│   │   └── Exploration/                        # API exploration scripts for Edge endpoint, relevance ordering, and two-pass product search method. Full tree contents shortened. See Exploration.md for details.
+│   │       └── Exploration.md                  # Breakdown of exploration scripts in this subfolder.
 │   ├── paknsave/
 │   │   ├── fetch_stores.py                     # One-shot: builds paknsave_stores.csv from __NEXT_DATA__
-│   │   └── PaknSave_prototype.py               # CLI: python scripts/paknsave/PaknSave_prototype.py "address" "dish"
+│   │   ├── PaknSave_prototype.py               # CLI: python scripts/paknsave/PaknSave_prototype.py "address" "dish"
+│   │   └── Exploration.md                    # Breakdown of exploration scripts (if any).
 │   └── woolworths/
 │       ├── woolworths_api.py                   # Cookie-based API module: session, store context, product search
 │       ├── woolworths_optimizer.py             # API-based optimizer: geocode, stores, pricing, cost comparison
 │       ├── Get_woolworths_store_API_data.py    # Fetches store details from CDX API
 │       ├── Get_woolworths_store_choices.py     # Fetches pickup store list from API
 │       ├── Merge_woolworths_stores.py          # Merges store choices and location data
-│       ├── Exploration/                        # API exploration scripts (black-box probing)
-│       │   ├── explore_woolworths_api_part1.py # Phase 1: endpoint enumeration, dasFilter taxonomy
-│       │   ├── explore_woolworths_api_part2.py # Phase 2: URL-param seeding, Playwright cookie injection
-│       │   ├── explore_woolworths_api_part3.py # Phase 3: shell validation, cw-lrkswrdjp deep-dive
-│       │   └── explore_woolworths_api_part4.py # Phase 4: programmatic cookie construction, price validation
+│       ├── Exploration/                        # API exploration scripts (black-box probing). Full tree contents shortened. See Exploration.md for details.
+│       │   └── Exploration.md                  # Breakdown of exploration scripts in this subfolder.
 │       └── Playwright/                         # Playwright-based scripts (legacy, not needed at runtime)
 │           ├── woolworths_scrape.py            # Headed scraper for search results
 │           └── ChangeStore.py                  # Store selection via modal URL
@@ -95,9 +95,8 @@ opencode/
 - Uses the same Foodstuffs mobile API as Pak'nSave with `banner: "MNW"` and `User-Agent: NewWorldApp/4.32.0`.
 - Prices from the New World API are in **cents** — divide by 100 for dollars.
 - 149 stores with coordinates and store IDs from the mobile API — no Nominatim geocoding needed.
-- New World Edge API (`api-prod.newworld.co.nz/v1/edge/store/physical`) requires JWT auth — not usable.
+- **Edge API two-pass pipeline**: Uses website JWT (`fs-user-token` cookie) for auth — works.
 - 7 stores missing URLs due to name mismatches between API and store-finder page (e.g., "Metro Auckland" vs "Metro Queen Street", macron differences).
-- See `NewWorld_API.md` for full documentation.
 
 ### Woolworths
 - **Per-store pricing via cookie injection**: The `cw-lrkswrdjp` cookie controls store context. Construct it as `dm-Pickup,f-{fulfilmentStoreId},s-38` where `fulfilmentStoreId` = `extra1` from `woolworths_store_data.json`. See `Woolworths_API.md` section 8 for full details.
@@ -164,7 +163,7 @@ opencode/
 - **7 stores missing URLs**: Name mismatches between API and store-finder page (e.g., "Metro Auckland" vs "Metro Queen Street", macron differences). URLs are only for website linking, not for the API optimizer.
 - **Full API documentation**: `NewWorld_API.md` covers all endpoints, auth flow, per-store pricing, two-pass pipeline, and production usage.
 - **`NewWorld_prototype.py` built and tested**: End-to-end pipeline working — geocode address, find nearby stores, search products, compare costs. 21 dishes supported.
-- **Two-pass pipeline implementation**: `scripts/newworld/Exploration/edge_api_relevance_exploration.py` (comprehensive), `test_milk_metro_relevance.py` (focused test), `edge_optimizer_demo.py` (full optimizer demo).
+- **Two-pass pipeline implementation**: `scripts/newworld/Exploration/explore_edge_api9_relevance.py` (comprehensive), `test_milk_metro_relevance.py` (focused test), `demo_edge_optimizer.py` (full optimizer demo).
 
 ## NZ Scope
 

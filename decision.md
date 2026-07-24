@@ -121,23 +121,64 @@ New World is owned by Foodstuffs (same as Pak'nSave). The mobile API at `api-pro
 
 The Foodstuffs mobile API (`GET /mobile/store/physical`) returns latitude/longitude directly for all 149 New World stores. This eliminates the need for Nominatim geocoding, which failed on 22 stores. The API also provides store UUIDs, banner info, click-and-collect/delivery flags, and opening hours — all in a single request. No rate limiting concerns.
 
-## 27. New World Edge API — store listing works with mobile token, but NO product search
+## 27. New World Edge API — FULL product search works (Algolia-based)
 
-The New World Edge API (`api-prod.newworld.co.nz/v1/edge/store/physical`) **works for store listing** when using the Foodstuffs mobile API bearer token. Requirements:
-- `Authorization: Bearer {mobile_token}` header
-- `access_token: {mobile_token}` header (same token)
-- `User-Agent: NewWorldApp/4.32.0`
+The New World Edge API (`api-prod.newworld.co.nz/v1/edge/`) provides **complete functionality** for the meal cost optimizer:
 
-Returns 149 stores with identical data to mobile API (same UUIDs, coordinates).
+### Store Listing ✅
+`GET /v1/edge/store` — Returns 148 stores with full details (id, name, address, coordinates, opening hours).
 
-**However**: The Edge API has **NO product search endpoints** — all tested endpoints return 404:
-- `/v1/edge/products/search`, `/v1/edge/products`, `/v1/edge/ecomm-products/*`, `/v1/edge/search`, `/v1/edge/categories`
+### Product Search ✅
+`POST /v1/edge/search/paginated/products` — Algolia-powered search with per-store pricing.
 
-The mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) is still REQUIRED for product search and per-store pricing.
+**Authentication**: Accepts JWT from either:
+- Mobile API guest login (`api-prod.prod.fsniwaikato.kiwi/prod/mobile/user/login/guest`)
+- Website session (`POST /api/user/get-current-user` on `www.newworld.co.nz` → cookie `fs-user-token`)
 
-The `JWT-VerifyRetailEdgeToken` error is an Apigee gateway policy. The mobile API token works because both APIs share the same IdP (`iss: "online-customer"`).
+**Required headers**:
+```
+Authorization: Bearer {jwt}
+access_token:  {jwt}
+Origin:        https://www.newworld.co.nz
+Referer:       https://www.newworld.co.nz/
+```
 
-See `scripts/newworld/Exploration/explore_edge_api.py` for full exploration.
+**Required cookies for per-store pricing**:
+```
+eCom_STORE_ID: {store_id}
+STORE_ID_V2:   {store_id}|False
+Region:        NI (or SI)
+```
+
+**Request payload**:
+```json
+{
+  "algoliaQuery": {"query": "milk"},
+  "page": 0,
+  "hitsPerPage": 20,
+  "storeId": "{store_id}",
+  "sortOrder": "PRICE_ASC"
+}
+```
+
+**Valid sortOrder**: `PRICE_ASC`, `PRICE_DESC`
+
+**Price extraction**:
+- Regular: `singlePrice.price` (cents)
+- Promo: `promotions[].rewardValue` where `bestPromotion: true` (cents)
+
+### Categories ✅
+`GET /v1/edge/store/{store_id}/categories` — Returns category tree.
+
+### Conclusion
+**The Edge API CAN replace the mobile API** for New World:
+- ✅ No dependency on mobile API endpoint
+- ✅ Works with website JWT (more future-proof)
+- ✅ Algolia search with proper sorting
+- ✅ Per-store pricing via cookies
+- ✅ Promotional pricing included
+
+See `scripts/newworld/Exploration/explore_edge_auth.py` and `edge_full_test.py` for working implementation.
 
 ## 28. New World store-finder page `__NEXT_DATA__` for URL slugs only
 

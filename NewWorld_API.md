@@ -509,74 +509,125 @@ Same parameters and response format as Pak'nSave.
 
 ---
 
-## 6. Endpoints That Do NOT Work (New World Edge API)
+## 6. New World Edge API (Website Backend)
 
 The New World website at `www.newworld.co.nz` exposes an Edge API at
 `api-prod.newworld.co.nz`. This API uses Apigee gateway with JWT verification.
 
-### 6.1 Store Listing — WORKS with Mobile API Token
+### 6.1 Authentication
 
-**Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store/physical`
+The Edge API accepts JWT tokens from the **same IdP** (`online-customer`) as the mobile API.
+Two ways to obtain a valid JWT:
 
-**Status**: ✅ **Works (HTTP 200)** when providing the mobile API guest token.
+| Method | Endpoint | Token Location |
+|--------|----------|----------------|
+| Mobile API guest login | `POST /mobile/user/login/guest` (mobile API) | Response body `access_token` |
+| Website session | `POST /api/user/get-current-user` (website) | Cookie `fs-user-token` |
 
-**Required headers**:
+**Required headers for all Edge API calls:**
 ```
-Authorization: Bearer {mobile_api_token}
-access_token:  {mobile_api_token}
-User-Agent:    NewWorldApp/4.32.0
-Content-Type:  application/json
+Authorization: Bearer {jwt_token}
+access_token:  {jwt_token}
+User-Agent:    Mozilla/5.0... (browser) OR NewWorldApp/4.32.0 (mobile)
+Origin:        https://www.newworld.co.nz
+Referer:       https://www.newworld.co.nz/
 ```
 
-**Result**: Returns 149 stores with identical data to mobile API (same UUIDs, coordinates, names).
+### 6.2 Store Listing
 
-### 6.2 Product Search — DOES NOT EXIST
+**Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store`
 
-All product endpoints return **HTTP 404**:
+**Status**: ✅ **Works (HTTP 200)** with valid JWT.
 
-| Endpoint | Method | Status |
-|----------|--------|--------|
-| `/v1/edge/products/search?q=milk&storeId={id}` | GET/POST | 404 |
-| `/v1/edge/products?storeId={id}&q=milk` | GET/POST | 404 |
-| `/v1/edge/ecomm-products/MNW/{storeId}/search?q=milk` | GET/POST | 404 |
-| `/v1/edge/store/{storeId}/products/search?q=milk` | GET/POST | 404 |
-| `/v1/edge/search?q=milk&storeId={id}` | GET/POST | 404 |
-| `/v1/edge/products` | GET/POST | 404 |
-| `/v1/edge/ecomm-products` | GET/POST | 404 |
-| `/v1/edge/categories` | GET/POST | 404 |
+**Returns**: 148 stores with full details (id, name, address, coordinates, opening hours, services).
 
-### 6.3 Without Valid Token
+### 6.3 Product Search — WORKS (Algolia-based)
 
-| Request | Result |
-|---------|--------|
-| No headers | 403 (Cloudflare challenge) |
-| `x-requested-with: ??` | 401 — `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)` |
-| `Authorization: Bearer fake` | 403 (Cloudflare) |
-| `Authorization + access_token fake` | 403 (Cloudflare) |
+**Endpoint**: `POST https://api-prod.newworld.co.nz/v1/edge/search/paginated/products`
 
-### 6.4 Why the Mobile Token Works on Edge API
+**Status**: ✅ **Works (HTTP 200)** with valid JWT + store context cookies.
 
-The mobile API guest token is a JWT issued by `online-customer` IdP:
+**Required cookies for per-store pricing:**
+```
+eCom_STORE_ID: {store_id}
+STORE_ID_V2:   {store_id}|False
+Region:        NI  (or SI for South Island)
+```
+
+**Request payload (Algolia format):**
 ```json
 {
-  "iss": "online-customer",
-  "banner": "MNW",
-  "roles": ["ANONYMOUS"],
-  "exp": timestamp
+  "algoliaQuery": {"query": "milk"},
+  "page": 0,
+  "hitsPerPage": 20,
+  "storeId": "{store_id}",
+  "sortOrder": "PRICE_ASC"
 }
 ```
 
-Both Edge API and mobile API sit behind the same Apigee gateway and trust the same IdP (`online-customer`). The `JWT-VerifyRetailEdgeToken` policy validates the JWT signature and issuer — the mobile token passes because it's from the same IdP.
+**Valid `sortOrder` values:** `PRICE_ASC`, `PRICE_DESC` (no `RELEVANCE`)
 
-### 6.5 Conclusion
+**Response structure:**
+```json
+{
+  "products": [
+    {
+      "productId": "5010693-EA-000",
+      "name": "Calci-Yum Chocolate Flavour Milk",
+      "displayName": "250ml",
+      "brand": "Anchor",
+      "singlePrice": {"price": 149, "comparativePrice": {...}},
+      "promotions": [{"rewardValue": 129, "bestPromotion": true, ...}],
+      "availability": ["IN_STORE", "ONLINE"]
+    }
+  ]
+}
+```
 
-**The Edge API cannot replace the mobile API** for the meal cost optimizer:
+**Price extraction:**
+- Regular price (cents): `singlePrice.price`
+- Promotional price (cents): `promotions[].rewardValue` where `bestPromotion: true`
+- Use promo price if available, else regular price
 
-1. **No product search endpoints exist** on Edge API
-2. **Per-store pricing requires product search** — core of the optimizer
-3. Mobile API provides identical store data PLUS full product search with per-store pricing
+### 6.4 Categories
 
-**Recommendation**: Continue using the Foodstuffs mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) for all New World operations.
+**Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store/{store_id}/categories`
+
+**Status**: ✅ **Works (HTTP 200)** with valid JWT + store cookies.
+
+**Returns**: Category tree for store navigation.
+
+### 6.5 Comparison: Mobile API vs Edge API
+
+| Feature | Mobile API | Edge API (Website) |
+|---------|------------|-------------------|
+| Auth | Guest login POST | Website session OR mobile token |
+| Store listing | ✅ 149 stores | ✅ 148 stores |
+| Product search | ✅ `/mobile/ecomm-products/MNW/{id}/search` | ✅ `/v1/edge/search/paginated/products` |
+| Per-store pricing | ✅ Native (storeId in URL) | ✅ Via cookies (`eCom_STORE_ID`) |
+| Price format | Cents in response | Cents in `singlePrice.price` |
+| Promotions | Included | Included in `promotions[]` |
+| Sort | Relevance (default) | `PRICE_ASC`, `PRICE_DESC` |
+| Pagination | Offset/limit | Algolia page/hitsPerPage |
+| Token source | Mobile API only | Mobile API OR website |
+
+### 6.6 Conclusion
+
+**The Edge API CAN replace the mobile API** for the meal cost optimizer:
+
+1. ✅ Store listing works
+2. ✅ Product search works (with Algolia query format)
+3. ✅ Per-store pricing works (via cookies)
+4. ✅ Promotional pricing included
+5. ✅ Works with website JWT (no mobile API dependency)
+
+**Advantages of Edge API:**
+- No dependency on mobile API endpoint
+- Algolia-powered search with proper sorting
+- Works with standard browser JWT (more future-proof)
+- Categories endpoint available for navigation
+
+**Implementation**: Use `scripts/newworld/Exploration/edge_optimizer_demo.py` as reference.
 
 See `scripts/newworld/Exploration/EDGE_API_FINDINGS.md` for full exploration details.
 

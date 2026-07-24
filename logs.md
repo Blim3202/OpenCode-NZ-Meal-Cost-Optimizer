@@ -249,6 +249,31 @@ The mobile token works because both APIs share the same IdP (`iss: "online-custo
 
 **Cause**: "Foodie Mart" (35 Landing Drive, Mangere) appears in the mobile API but not on the store-finder page. It may be a different entity or temporarily excluded from the page.
 
-**Resolution**: Used the mobile API as the authoritative source (149 stores). The extra page store ("Te Atatu") is also not in the API. This store is set to open on 11/08/2026, suggesting that the API is currently filtered out not populated yet for this store.
+**Resolution**: Used the mobile API as the authoritative source (149 stores). The extra page store ("Te Atatu") is also not in the API. This store is set to open on 11/08/2026, suggesting that the API is currently filtered out or not populated yet for this store.
+
+## 27. New World Edge API — Product search WORKS (Algolia-based)
+
+**Symptom**: Initial Edge API exploration tested wrong endpoints (`/v1/edge/products/search`, `/v1/edge/ecomm-products/*`, etc.) — all returned 404.
+
+**Discovery**: The website uses a different endpoint for product search:
+- `POST /v1/edge/search/paginated/products` — Algolia-powered, returns 200 OK
+
+**Working configuration**:
+- **Auth**: Website JWT from `POST /api/user/get-current-user` → cookie `fs-user-token` (also works with mobile API token)
+- **Store context**: Cookies `eCom_STORE_ID`, `STORE_ID_V2`, `Region`
+- **Payload**: `{"algoliaQuery": {"query": "milk"}, "page": 0, "hitsPerPage": 20, "storeId": "...", "sortOrder": "PRICE_ASC"}`
+- **Sort options**: `PRICE_ASC`, `PRICE_DESC`
+- **Pricing**: `singlePrice.price` (cents) + `promotions[].rewardValue` (promo cents)
+
+**Price differences confirmed**: Same query returns different prices at different stores (e.g., Standard Milk $4.92 at Te Puke vs $4.92 at Rototuna — for different products; Blue UHT Longlife Milk $1.89 vs $1.69).
+
+**Conclusion**: The Edge API **CAN fully replace the mobile API** for New World:
+- No dependency on Foodstuffs mobile API endpoint
+- Works with standard website JWT (more future-proof)
+- Algolia search with proper price sorting
+- Per-store pricing via cookies
+- Promotional pricing included
+
+See `scripts/newworld/Exploration/explore_edge_auth.py`, `edge_full_test.py`, `edge_optimizer_demo.py` for working implementations.
 
 (End of file)

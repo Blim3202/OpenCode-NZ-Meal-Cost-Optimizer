@@ -192,13 +192,25 @@ Cookie construction: `dm-Pickup,f-{extra1},s-38`. This works for all 183 stores 
 
 **Resolution**: Updated the JSON path to `data.props.pageProps.page.page_content.content_blocks[1].store_finder.regionStoreGroupings`. Verified the structure has `northIsland` and `southIsland` keys, each containing `groups` with `stores` arrays (each store has `title`, `url`, `address`).
 
-## 22. New World Edge API requires JWT auth (401)
+## 22. New World Edge API — store listing works with mobile token, NO product search
 
-**Symptom**: `GET https://api-prod.newworld.co.nz/v1/edge/store/physical` returned HTTP 401 with `{"fault":{"faultstring":"Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)"}}`.
+**Symptom**: `GET https://api-prod.newworld.co.nz/v1/edge/store/physical` returned HTTP 401 with `{"fault":{"faultstring":"Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)"}}` when tested without proper authentication.
 
-**Cause**: The New World Edge API requires a JWT bearer token that cannot be obtained without proper authentication credentials. Various header combinations were tried (`x-requested-with`, `x-api-key`, `referer`, `accept`) — all failed.
+**Cause**: The Edge API is behind an Apigee gateway with a `JWT-VerifyRetailEdgeToken` policy that validates JWT tokens. The error occurs when no valid JWT is provided.
 
-**Resolution**: Abandoned the Edge API. Switched to the Foodstuffs mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) which serves both Pak'nSave and New World with `banner: "PNS"` or `banner: "MNW"`.
+**Discovery**: The Foodstuffs mobile API guest token (a JWT from `online-customer` IdP) **is accepted by the Edge API** when both headers are provided:
+- `Authorization: Bearer {token}`
+- `access_token: {token}`
+
+The mobile token works because both APIs share the same IdP (`iss: "online-customer"`).
+
+**However**: The Edge API has **NO product search endpoints** — all tested endpoints return 404:
+- `/v1/edge/products/search`, `/v1/edge/products`, `/v1/edge/ecomm-products/*`, `/v1/edge/search`, `/v1/edge/categories`
+
+**Resolution**: The Edge API cannot replace the mobile API for the meal cost optimizer. Store listing works, but product search (essential for per-store pricing) does not exist. Continue using the Foodstuffs mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) for all New World operations.
+
+**Exploration scripts**: `scripts/newworld/Exploration/explore_edge_api.py`, `explore_edge_api2.py`, `explore_edge_api3.py`, `explore_edge_api4.py`, `explore_edge_api5.py`
+**Documentation**: `scripts/newworld/Exploration/EDGE_API_FINDINGS.md`
 
 ## 23. New World mobile API requires `NewWorldApp/4.32.0` User-Agent
 

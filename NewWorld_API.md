@@ -512,24 +512,73 @@ Same parameters and response format as Pak'nSave.
 ## 6. Endpoints That Do NOT Work (New World Edge API)
 
 The New World website at `www.newworld.co.nz` exposes an Edge API at
-`api-prod.newworld.co.nz`. This API requires JWT bearer token authentication
-that cannot be obtained without proper credentials.
+`api-prod.newworld.co.nz`. This API uses Apigee gateway with JWT verification.
+
+### 6.1 Store Listing — WORKS with Mobile API Token
+
+**Endpoint**: `GET https://api-prod.newworld.co.nz/v1/edge/store/physical`
+
+**Status**: ✅ **Works (HTTP 200)** when providing the mobile API guest token.
+
+**Required headers**:
+```
+Authorization: Bearer {mobile_api_token}
+access_token:  {mobile_api_token}
+User-Agent:    NewWorldApp/4.32.0
+Content-Type:  application/json
+```
+
+**Result**: Returns 149 stores with identical data to mobile API (same UUIDs, coordinates, names).
+
+### 6.2 Product Search — DOES NOT EXIST
+
+All product endpoints return **HTTP 404**:
 
 | Endpoint | Method | Status |
 |----------|--------|--------|
-| `https://api-prod.newworld.co.nz/v1/edge/store/physical` | GET | **401** — `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)` |
+| `/v1/edge/products/search?q=milk&storeId={id}` | GET/POST | 404 |
+| `/v1/edge/products?storeId={id}&q=milk` | GET/POST | 404 |
+| `/v1/edge/ecomm-products/MNW/{storeId}/search?q=milk` | GET/POST | 404 |
+| `/v1/edge/store/{storeId}/products/search?q=milk` | GET/POST | 404 |
+| `/v1/edge/search?q=milk&storeId={id}` | GET/POST | 404 |
+| `/v1/edge/products` | GET/POST | 404 |
+| `/v1/edge/ecomm-products` | GET/POST | 404 |
+| `/v1/edge/categories` | GET/POST | 404 |
 
-**Why the mobile API is preferred:**
+### 6.3 Without Valid Token
 
-1. **No JWT auth required** — mobile API uses simple guest token (banner-based)
-2. **Same data coverage** — all 149 New World stores with coordinates and IDs
-3. **Per-store pricing** — mobile API returns prices per-store natively
-4. **More data per product** — mobile API returns `productImageUrls`, `unitPrice`,
-   `algoliaAnalytics`, `brand`, `availableInOnline`, flag fields
+| Request | Result |
+|---------|--------|
+| No headers | 403 (Cloudflare challenge) |
+| `x-requested-with: ??` | 401 — `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken) variable(null)` |
+| `Authorization: Bearer fake` | 403 (Cloudflare) |
+| `Authorization + access_token fake` | 403 (Cloudflare) |
 
-The Edge API was tested with various header combinations (`x-requested-with`,
-`x-api-key`, `referer`, `accept`) — all failed with 401. It requires a JWT token
-that is only available through authenticated sessions (user login).
+### 6.4 Why the Mobile Token Works on Edge API
+
+The mobile API guest token is a JWT issued by `online-customer` IdP:
+```json
+{
+  "iss": "online-customer",
+  "banner": "MNW",
+  "roles": ["ANONYMOUS"],
+  "exp": timestamp
+}
+```
+
+Both Edge API and mobile API sit behind the same Apigee gateway and trust the same IdP (`online-customer`). The `JWT-VerifyRetailEdgeToken` policy validates the JWT signature and issuer — the mobile token passes because it's from the same IdP.
+
+### 6.5 Conclusion
+
+**The Edge API cannot replace the mobile API** for the meal cost optimizer:
+
+1. **No product search endpoints exist** on Edge API
+2. **Per-store pricing requires product search** — core of the optimizer
+3. Mobile API provides identical store data PLUS full product search with per-store pricing
+
+**Recommendation**: Continue using the Foodstuffs mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) for all New World operations.
+
+See `scripts/newworld/Exploration/EDGE_API_FINDINGS.md` for full exploration details.
 
 ---
 

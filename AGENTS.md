@@ -126,7 +126,7 @@ opencode/
 - **Per-store pricing CONFIRMED**: Native per-store pricing via store ID in URL path — no cookie tricks needed (unlike Woolworths). Different stores return different prices (e.g., beef mince: $9.49 at Shore City vs $26.99 at Metro Auckland).
 - **Mobile API working**: `api-prod.prod.fsniwaikato.kiwi/prod` with `banner: "MNW"` and `User-Agent: NewWorldApp/4.32.0` returns 149 stores with coordinates and store IDs.
 - **No Nominatim geocoding needed**: All 149 stores have coordinates from the mobile API — eliminates the 22 stores that were missing coordinates via Nominatim.
-- **New World Edge API abandoned**: `api-prod.newworld.co.nz/v1/edge/store/physical` returns 401 JWT error — not usable without proper auth.
+- **New World Edge API store listing works with mobile token**: `api-prod.newworld.co.nz/v1/edge/store/physical` returns 149 stores (HTTP 200) when using the mobile API guest token (both `Authorization` and `access_token` headers). **However**: NO product search endpoints exist on Edge API (all 404). Mobile API still required for per-store pricing.
 - **7 stores missing URLs**: Name mismatches between API and store-finder page (e.g., "Metro Auckland" vs "Metro Queen Street", macron differences). URLs are only for website linking, not for the API optimizer.
 - **Full API documentation**: `NewWorld_API.md` covers all endpoints, auth flow, per-store pricing, and production usage.
 - **`NewWorld_prototype.py` built and tested**: End-to-end pipeline working — geocode address, find nearby stores, search products, compare costs. 21 dishes supported.

@@ -121,9 +121,23 @@ New World is owned by Foodstuffs (same as Pak'nSave). The mobile API at `api-pro
 
 The Foodstuffs mobile API (`GET /mobile/store/physical`) returns latitude/longitude directly for all 149 New World stores. This eliminates the need for Nominatim geocoding, which failed on 22 stores. The API also provides store UUIDs, banner info, click-and-collect/delivery flags, and opening hours — all in a single request. No rate limiting concerns.
 
-## 27. New World Edge API abandoned
+## 27. New World Edge API — store listing works with mobile token, but NO product search
 
-The New World Edge API (`api-prod.newworld.co.nz/v1/edge/store/physical`) requires a JWT bearer token that cannot be obtained without proper authentication. Returns HTTP 401 with `Failed to Resolve Variable : policy(JWT-VerifyRetailEdgeToken)`. The Foodstuffs mobile API is the viable alternative and provides complete store data.
+The New World Edge API (`api-prod.newworld.co.nz/v1/edge/store/physical`) **works for store listing** when using the Foodstuffs mobile API bearer token. Requirements:
+- `Authorization: Bearer {mobile_token}` header
+- `access_token: {mobile_token}` header (same token)
+- `User-Agent: NewWorldApp/4.32.0`
+
+Returns 149 stores with identical data to mobile API (same UUIDs, coordinates).
+
+**However**: The Edge API has **NO product search endpoints** — all tested endpoints return 404:
+- `/v1/edge/products/search`, `/v1/edge/products`, `/v1/edge/ecomm-products/*`, `/v1/edge/search`, `/v1/edge/categories`
+
+The mobile API (`api-prod.prod.fsniwaikato.kiwi/prod`) is still REQUIRED for product search and per-store pricing.
+
+The `JWT-VerifyRetailEdgeToken` error is an Apigee gateway policy. The mobile API token works because both APIs share the same IdP (`iss: "online-customer"`).
+
+See `scripts/newworld/Exploration/explore_edge_api.py` for full exploration.
 
 ## 28. New World store-finder page `__NEXT_DATA__` for URL slugs only
 
